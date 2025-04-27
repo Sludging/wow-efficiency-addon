@@ -1,0 +1,25 @@
+# TODO: Get this from in-game /dump select(4, GetBuildInfo())
+## Interface: 99999 
+## Title: Wow Efficiency
+## Notes: A helper addon for the WoWEfficiency website.
+## Author: Sludger
+## Version: 1.0.0
+## RequiredDeps:
+# Only after we upload to curseforge
+## X-Curse-Project-ID: 999999
+## SavedVariables: WowEfficiencyDB
+# Declare optional dependency
+## OptionalDeps: Ace3 
+
+# Load libraries - Order matters!
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\Ace3\AceAddon-3.0\AceAddon-3.0.xml
+Libs\Ace3\AceEvent-3.0\AceEvent-3.0.xml
+Libs\Ace3\AceDB-3.0\AceDB-3.0.xml
+Libs\Ace3\AceConsole-3.0\AceConsole-3.0.xml
+
+# Our addon files
+Types.lua
+Constants.lua
+Core.lua

@@ -28,4 +28,6 @@ externals:
 
 ignore:
   - README.md
+  - Context.md
   - Scripts
+  - Libs/LibStub/tests

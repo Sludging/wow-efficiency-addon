@@ -17,7 +17,7 @@ local Module = WoWEfficiency:NewModule('Debug')
 -- Learn how to do this better.
 function Module:DebugPrint(...)
     -- Use the WoWEfficiency object captured from the outer scope
-    if db.db and db.db.profile and db.db.profile.debugMode then
+    if db:IsProfileDBReady() and db:GetProfileDBKey("debugMode") then
         WoWEfficiency:Print("|cFF00FF00DEBUG:|r", ...)
     end
 end

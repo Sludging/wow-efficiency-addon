@@ -46,12 +46,12 @@ function WoWEfficiency:ChatCommand(input)
 
     if command == "check" then
         self:Print("--- Checking Stored Completed Quests ---")
-        if not db.db or not db.db.char then
+        if not db:IsCharDBReady() then
             self:Print("Database not yet initialized.")
             return
         end
 
-        local completedQuestsDB = db.db.char.completedQuests
+        local completedQuestsDB = db:GetCharDBKey("completedQuests")
         local count = 0
         local questList = {}
         for questID, _ in pairs(completedQuestsDB) do
@@ -70,9 +70,9 @@ function WoWEfficiency:ChatCommand(input)
         end
         self:Print("-----------------------------------------")
     elseif command == "debug" then
-        if db.db and db.db.profile then
-            db.db.profile.debugMode = not db.db.profile.debugMode
-            if db.db.profile.debugMode then
+        if db:GetDB().profile then
+            db:UpdateProfileDBKey("debugMode", not db:GetProfileDBKey("debugMode"))
+            if db:GetProfileDBKey("debugMode") then
                 self:Print("Debug mode |cFF00FF00ENABLED|r.")
             else
                 self:Print("Debug mode |cFFFF0000DISABLED|r.")

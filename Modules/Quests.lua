@@ -32,6 +32,10 @@ end
 
 -- Checks all quests in the trackedQuestIDs list and updates the database
 function Module:UpdateAllTrackedQuests()
+    -- TODO: Don't track characters under 70
+    -- TODO: Don't track characters that don't have the required professions?
+    -- TODO: This is purely efficient, not really a blocker.
+
     Debug:DebugPrint("Updating all tracked quests.")
     -- Ensure Constants and the quest list exist before proceeding
     if not self.Constants or not self.Constants.TrackedQuestIDs then
@@ -39,49 +43,35 @@ function Module:UpdateAllTrackedQuests()
         return -- Exit the function early
     end
     -- Ensure DB character profile is loaded
-    if not db.db or not db.db.char then
+    if not db:IsCharDBReady() then
         -- This might happen if the check runs too early.
         Debug:DebugPrint("!!! WARNING: UpdateAllTrackedQuests cannot run because self.db.char is not ready.")
         return -- Exit the function early
     end
 
-    local completedQuestsDB = db.db.char.completedQuests
-    local changed = false
+    local completedQuestsDB = db:GetCharDBKey("completedQuests")
 
     -- Access the quest list from self.Constants
     for _, questID in ipairs(self.Constants.TrackedQuestIDs) do
         -- Ensure questID is valid before checking
         if type(questID) == "number" and questID > 0 then
+            -- TODO: Investigate but I think this comes back as false during logout.
             local isCompleted = C_QuestLog.IsQuestFlaggedCompleted(questID)
 
             if isCompleted then
-                -- Quest is completed, ensure it's marked in the DB
                 if not completedQuestsDB[questID] then
                     completedQuestsDB[questID] = true
-                    changed = true
-                    -- self:Print("Quest " .. questID .. " marked as complete.") -- Removed debug print
-                end
-            else
-                -- Quest is not completed, ensure it's *not* marked in the DB
-                if completedQuestsDB[questID] then
-                    completedQuestsDB[questID] = nil -- Use nil to remove the key
-                    changed = true
-                    -- self:Print("Quest " .. questID .. " unmarked.") -- Removed debug print
+                    Debug:DebugPrint("Quest " .. questID .. " marked as complete.") -- Removed debug print
                 end
             end
         else
             Debug:DebugPrint("!!! WARNING: Invalid quest ID found in TrackedQuestIDs list: " .. tostring(questID))
         end
     end
+    
+    db:UpdateCharDBKey("completedQuests", completedQuestsDB)
 
-    if changed then
-        Debug:DebugPrint("Quest database updated.")
-    else
-        -- No need to print if nothing changed, reducing spam
-        -- self:Print("No quest changes detected.")
-    end
-
-    Debug:DebugPrint("Tracking ended.")
+    Debug:DebugPrint("Quest tracking ended.")
 end
 
 -------------------------------------------------

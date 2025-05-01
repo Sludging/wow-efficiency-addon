@@ -22,7 +22,9 @@ Libs\Ace3\AceConsole-3.0\AceConsole-3.0.xml
 # Our addon files
 Init.lua
 Types.lua
+Utils\Table.lua
 Modules\DB.lua
 Modules\Debug.lua
 Modules\Quests.lua
+Modules\Professions.lua
 Core.lua

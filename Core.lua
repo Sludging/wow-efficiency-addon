@@ -26,7 +26,6 @@ function WoWEfficiency:OnEnable()
     -- This function runs every time the addon is enabled (e.g., after login, /reload)
     -- Events are now handled by AceDB callbacks, so nothing needed here for quest checks.
     Debug.DebugPrint(addonName .. " Enabled.")
-    -- self:RegisterEvent("PLAYER_ENTERING_WORLD")
 end
 
 -- ==============================================================================

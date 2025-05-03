@@ -11,11 +11,14 @@ local Debug = WoWEfficiency:GetModule('Debug')
 ---@type WoWEfficiency_DB
 local db = WoWEfficiency:GetModule('DB')
 
+-- Upvalue global functions
+local CQL_IsQuestFlaggedCompleted = C_QuestLog.IsQuestFlaggedCompleted
+
 -- Define the module
----@class WoWEfficiency_Quests: AceModule, AceEvent-3.0
+---@class WoWEfficiency_Quests: AceModule, AceEvent-3.0, AceBucket-3.0
 ---@field UpdateAllTrackedQuests fun(self: WoWEfficiency_Quests)
 ---@field TrackedQuestIDs table @List of quest IDs to track
-local Module = WoWEfficiency:NewModule('Quests')
+local Module = WoWEfficiency:NewModule('Quests', "AceBucket-3.0")
 
 function Module:OnInitialize()
     Debug:DebugPrint("Quest Module" .. " Initialized.")
@@ -25,16 +28,31 @@ function Module:OnEnable()
     Debug:DebugPrint("Quest Module" .. " Enabled.")
 
     -- Register events
-    self:RegisterEvent("PLAYER_ENTERING_WORLD", "UpdateAllTrackedQuests")
-    self:RegisterEvent("PLAYER_LOGOUT", "UpdateAllTrackedQuests")
-    self:RegisterEvent("PLAYER_LEAVING_WORLD", "UpdateAllTrackedQuests")
+    self:RegisterBucketEvent(
+        ---@diagnostic disable-next-line: param-type-mismatch 
+        {
+            "PLAYER_ENTERING_WORLD",
+            --'QUEST_LOG_UPDATE', -- spammy quest log updates
+            'QUEST_COMPLETE',
+            'QUEST_FINISHED',
+            'QUEST_TURNED_IN',
+            'ITEM_PUSH',        -- tracking quests
+            'LOOT_CLOSED',      -- tracking quests
+            'SHOW_LOOT_TOAST',  -- tracking quests
+        },
+        3,
+        "UpdateAllTrackedQuests"
+    )
+
 end
 
 -- Checks all quests in the trackedQuestIDs list and updates the database
 function Module:UpdateAllTrackedQuests()
-    -- TODO: Don't track characters under 70
+    local playerLevel = UnitLevel("player")
+    if playerLevel < 70 then
+        return
+    end
     -- TODO: Don't track characters that don't have the required professions?
-    -- TODO: This is purely efficient, not really a blocker.
 
     Debug:DebugPrint("Updating all tracked quests.")
     -- Ensure Constants and the quest list exist before proceeding
@@ -56,12 +74,12 @@ function Module:UpdateAllTrackedQuests()
         -- Ensure questID is valid before checking
         if type(questID) == "number" and questID > 0 then
             -- TODO: Investigate but I think this comes back as false during logout.
-            local isCompleted = C_QuestLog.IsQuestFlaggedCompleted(questID)
+            local isCompleted = CQL_IsQuestFlaggedCompleted(questID)
 
             if isCompleted then
                 if not completedQuestsDB[questID] then
                     completedQuestsDB[questID] = true
-                    Debug:DebugPrint("Quest " .. questID .. " marked as complete.") -- Removed debug print
+                    Debug:DebugPrint("Quest " .. questID .. " marked as complete.")
                 end
             end
         else
@@ -72,6 +90,10 @@ function Module:UpdateAllTrackedQuests()
     db:UpdateCharDBKey("completedQuests", completedQuestsDB)
 
     Debug:DebugPrint("Quest tracking ended.")
+    -- TODO: Investigate if this works.
+    C_Log.LogMessage("Quest tracking ended.")
+
+    
 end
 
 -------------------------------------------------

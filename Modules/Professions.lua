@@ -12,9 +12,23 @@ local Debug = WoWEfficiency:GetModule('Debug')
 local db = WoWEfficiency:GetModule('DB')
 
 -- Define the module
----@class WoWEfficiency_Professions: AceModule, AceEvent-3.0
+---@class WoWEfficiency_Professions: AceModule, AceEvent-3.0, AceBucket-3.0
 ---@field UpdateProfessions fun(self: WoWEfficiency_Professions)
-local Module = WoWEfficiency:NewModule('Professions')
+---@field UpdateCooldowns fun(self: WoWEfficiency_Professions)
+---@field GetRecipeCooldowns fun(self: WoWEfficiency_Professions, recipeID: number)
+local Module = WoWEfficiency:NewModule('Professions', "AceBucket-3.0")
+
+-- Upvalue global functions
+local _GetProfessions = GetProfessions
+local _GetProfessionInfo = GetProfessionInfo
+local C_ProfSpecs_GetCurrencyInfoForSkillLine = C_ProfSpecs.GetCurrencyInfoForSkillLine
+local C_ProfSpecs_GetConfigIDForSkillLine = C_ProfSpecs.GetConfigIDForSkillLine
+local C_Traits_GetConfigInfo = C_Traits.GetConfigInfo
+local C_Traits_GetTreeNodes = C_Traits.GetTreeNodes
+local C_Traits_GetNodeInfo = C_Traits.GetNodeInfo
+local C_ProfSpecs_GetStateForTab = C_ProfSpecs.GetStateForTab
+local C_ProfSpecs_GetTabInfo = C_ProfSpecs.GetTabInfo
+local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
 
 function Module:OnInitialize()
     Debug:DebugPrint("Professions Module" .. " Initialized.")
@@ -23,29 +37,56 @@ end
 function Module:OnEnable()
     Debug:DebugPrint("Professions Module" .. " Enabled.")
 
-    -- Register events
-    self:RegisterEvent("PLAYER_ENTERING_WORLD", "UpdateProfessions")
-    self:RegisterEvent("PLAYER_LOGOUT", "UpdateProfessions")
-    self:RegisterEvent("PLAYER_LEAVING_WORLD", "UpdateProfessions")
+    -- Trigger update profession as soon as possible to make it available for the other functions
+    self:RegisterEvent('PLAYER_ENTERING_WORLD', "UpdateProfessions")
+    -- Register bucket events for profession updates
+    self:RegisterBucketEvent(
+    ---@diagnostic disable-next-line: param-type-mismatch
+        {
+            'SKILL_LINES_CHANGED',
+            'TRADE_SKILL_LIST_UPDATE',
+        },
+        3,
+        "UpdateProfessions"
+    )
+
+    -- Register event for cooldown updates
+    self:RegisterEvent('TRADE_SKILL_LIST_UPDATE', "UpdateCooldowns")
 end
 
 local GetProfessionStruct = function(skillLineID, skillLevel, maxSkillLevel)
-    return {
-        enabled = true,
+    local baseline = {
         skillLineID = skillLineID,
         level = skillLevel,
         maxLevel = maxSkillLevel,
         knowledgeLevel = 0,
         knowledgeMaxLevel = 0,
         knowledgeUnspent = 0,
-        specializations = {}
+        specializations = {},
+        cooldowns = {},
+        concentration = nil,
     }
+
+    -- Get the current profession data
+    local current = db:GetCharDBKey("professions")[skillLineID]
+    -- If we don't have current profession data, return the baseline
+    if not current then
+        return baseline
+    end
+
+    -- Copy over the current profession data
+    for k, v in pairs(current) do
+        baseline[k] = v
+    end
+
+    -- Return the baseline (this allows us to add keys that don't exist in the current data)
+    return baseline
 end
 
 local GetSpecializationStruct = function(tabInfo, treeID, configID)
     return {
         tabInfo = tabInfo,
-        state = C_ProfSpecs.GetStateForTab(treeID, configID),
+        state = C_ProfSpecs_GetStateForTab(treeID, configID),
         treeID = treeID,
         configID = configID,
         knowledgeLevel = 0,
@@ -56,7 +97,7 @@ end
 local ExtractProfessionData = function(professionIndex)
     -- Get baseline profession info
     local name, icon, skillLevel, maxSkillLevel, numAbilities, spelloffset, skillLineID, skillModifier, specializationIndex, specializationOffset =
-        GetProfessionInfo(professionIndex)
+        _GetProfessionInfo(professionIndex)
 
     -- Map to our base profession data
     local baseProfessionData = Module.Constants.Base[skillLineID]
@@ -69,42 +110,42 @@ local ExtractProfessionData = function(professionIndex)
     local professionStruct = GetProfessionStruct(skillLineID, skillLevel, maxSkillLevel)
 
     -- Currency info for the skill line contains the current unspent knowledge points.
-    local currencyInfo = C_ProfSpecs.GetCurrencyInfoForSkillLine(baseProfessionData.skillLineVariantID)
+    local currencyInfo = C_ProfSpecs_GetCurrencyInfoForSkillLine(baseProfessionData.skillLineVariantID)
     if currencyInfo and currencyInfo.numAvailable then
         professionStruct.knowledgeUnspent = currencyInfo.numAvailable
     end
 
     -- Catch up currency info
     if baseProfessionData.catchUpCurrencyID then
-        local catchUpCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo(baseProfessionData.catchUpCurrencyID)
+        local catchUpCurrencyInfo = C_CurrencyInfo_GetCurrencyInfo(baseProfessionData.catchUpCurrencyID)
         if catchUpCurrencyInfo and catchUpCurrencyInfo.quantity then
             professionStruct.catchUpCurrencyInfo = catchUpCurrencyInfo
         end
     end
 
     -- Get the config ID for the skill line
-    local configID = C_ProfSpecs.GetConfigIDForSkillLine(baseProfessionData.skillLineVariantID)
+    local configID = C_ProfSpecs_GetConfigIDForSkillLine(baseProfessionData.skillLineVariantID)
     if configID and configID > 0 then
         -- Get the config info for the skill line
-        local configInfo = C_Traits.GetConfigInfo(configID)
+        local configInfo = C_Traits_GetConfigInfo(configID)
         if configInfo then
             -- Iterate over the tree IDs (specialization trees)
             for _, treeID in pairs(configInfo.treeIDs) do
                 -- Get the nodes for the tree
-                local treeNodes = C_Traits.GetTreeNodes(treeID)
+                local treeNodes = C_Traits_GetTreeNodes(treeID)
                 if not treeNodes then
                     Debug:DebugPrint("!!! WARNING: Failed to get tree nodes for treeID: " .. treeID)
                     return
                 end
 
                 -- Get the tab info for the tree
-                local tabInfo = C_ProfSpecs.GetTabInfo(treeID)
+                local tabInfo = C_ProfSpecs_GetTabInfo(treeID)
                 -- Initialize the specialization struct
                 local specializationStruct = GetSpecializationStruct(tabInfo, treeID, configID)
 
                 for _, nodeID in pairs(treeNodes) do
                     -- Get the node info
-                    local nodeInfo = C_Traits.GetNodeInfo(configID, nodeID)
+                    local nodeInfo = C_Traits_GetNodeInfo(configID, nodeID)
                     if not nodeInfo then
                         Debug:DebugPrint("!!! WARNING: Failed to get node info for nodeID: " .. nodeID)
                         return
@@ -138,10 +179,12 @@ local ExtractProfessionData = function(professionIndex)
 end
 
 function Module:UpdateProfessions()
-    -- TODO: Don't track characters under 70
-    local prof1, prof2 = GetProfessions()
+    local playerLevel = UnitLevel("player")
+    if playerLevel < 70 then
+        return
+    end
 
-    Debug:DebugPrint("Before - Professions: " .. Table:ToString(db:GetCharDBKey("professions")))
+    local prof1, prof2 = _GetProfessions()
 
     local professionsDB = db:GetCharDBKey("professions")
     for _, professionIndex in pairs({ prof1, prof2 }) do
@@ -150,15 +193,14 @@ function Module:UpdateProfessions()
             if professionData then
                 professionsDB[professionData.skillLineID] = professionData
             else
-                Debug:DebugPrint("!!! WARNING: Failed to extract profession data for profession index: " .. professionIndex)
+                Debug:DebugPrint("!!! WARNING: Failed to extract profession data for profession index: " ..
+                professionIndex)
             end
         end
     end
 
-    Debug:DebugPrint("After - Professions: " .. Table:ToString(db:GetCharDBKey("professions")))
-
     db:UpdateCharDBKey("professions", professionsDB)
-    
+
     Debug:DebugPrint("Professions updated")
 end
 
@@ -235,5 +277,5 @@ Module.Constants = {
             skillLineVariantID = 2883,
             catchUpCurrencyID = 3067,
         }
-    }
+    },
 }

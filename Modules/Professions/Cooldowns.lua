@@ -72,7 +72,8 @@ local GetRecipeCooldowns = function(recipeID)
         cooldownStruct.cooldownPerCharge = spellCooldownInfo.duration
         cooldownStruct.maxCharges = 1
         cooldownStruct.currentCharges = 1
-        if spellCooldownInfo.startTime > 0 then
+        -- TODO: Figure out why cooldownPerCharge is sometimes nil
+        if spellCooldownInfo.startTime > 0 and cooldownStruct.cooldownPerCharge then
             cooldownStruct.currentCharges = 0
             local elapsedTimeSinceCooldownStart = (cooldownStruct.cooldownPerCharge - currentCooldown)
             cooldownStruct.startTimeCurrentCharge = GetServerTime() - elapsedTimeSinceCooldownStart
@@ -80,7 +81,8 @@ local GetRecipeCooldowns = function(recipeID)
         end
     else
         cooldownStruct.cooldownPerCharge = CS_GetSpellCooldown(recipeID).cooldownDuration
-        if cooldownStruct.currentCharges < cooldownStruct.maxCharges then
+        -- TODO: Figure out why cooldownPerCharge is sometimes nil
+        if cooldownStruct.currentCharges < cooldownStruct.maxCharges and cooldownStruct.cooldownPerCharge then
             local elapsedTimeSinceCooldownStart = (cooldownStruct.cooldownPerCharge - currentCooldown)
             cooldownStruct.startTimeCurrentCharge = GetServerTime() - elapsedTimeSinceCooldownStart
             cooldownStruct.startTime = math.max(

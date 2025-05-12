@@ -90,10 +90,6 @@ function Module:UpdateAllTrackedQuests()
     db:UpdateCharDBKey("completedQuests", completedQuestsDB)
 
     Debug:DebugPrint("Quest tracking ended.")
-    -- TODO: Investigate if this works.
-    C_Log.LogMessage("Quest tracking ended.")
-
-    
 end
 
 -------------------------------------------------

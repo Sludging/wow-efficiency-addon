@@ -14,8 +14,9 @@ local db = WoWEfficiency:GetModule('DB')
 -- Define the module
 ---@class WoWEfficiency_Professions: AceModule, AceEvent-3.0, AceBucket-3.0
 ---@field UpdateProfessions fun(self: WoWEfficiency_Professions)
----@field UpdateCooldowns fun(self: WoWEfficiency_Professions)
----@field GetRecipeCooldowns fun(self: WoWEfficiency_Professions, recipeID: number)
+---@field OnEnable fun(self: WoWEfficiency_Professions)
+---@field OnInitialize fun(self: WoWEfficiency_Professions)
+---@field Constants table
 local Module = WoWEfficiency:NewModule('Professions', "AceBucket-3.0")
 
 -- Upvalue global functions
@@ -49,9 +50,6 @@ function Module:OnEnable()
         3,
         "UpdateProfessions"
     )
-
-    -- Register event for cooldown updates
-    self:RegisterEvent('TRADE_SKILL_LIST_UPDATE', "UpdateCooldowns")
 end
 
 local GetProfessionStruct = function(skillLineID, skillLevel, maxSkillLevel)
@@ -123,6 +121,10 @@ local ExtractProfessionData = function(professionIndex)
         end
     end
 
+    -- Knowledge level sum
+    local knowledgeLevelSum = 0
+    local knowledgeMaxLevelSum = 0
+
     -- Get the config ID for the skill line
     local configID = C_ProfSpecs_GetConfigIDForSkillLine(baseProfessionData.skillLineVariantID)
     if configID and configID > 0 then
@@ -153,7 +155,7 @@ local ExtractProfessionData = function(professionIndex)
 
                     -- If the node has been purchased, add the knowledge level
                     if nodeInfo.ranksPurchased > 1 then
-                        professionStruct.knowledgeLevel = professionStruct.knowledgeLevel + (nodeInfo.currentRank - 1)
+                        knowledgeLevelSum = knowledgeLevelSum + (nodeInfo.currentRank - 1)
                         if tabInfo and specializationStruct then
                             specializationStruct.knowledgeLevel = specializationStruct.knowledgeLevel +
                                 (nodeInfo.currentRank - 1)
@@ -162,7 +164,7 @@ local ExtractProfessionData = function(professionIndex)
 
                     -- I might be able to just have this on the site, not sure I need it.
                     -- Update the max knowledge level
-                    professionStruct.knowledgeMaxLevel = professionStruct.knowledgeMaxLevel + (nodeInfo.maxRanks - 1)
+                    knowledgeMaxLevelSum = knowledgeMaxLevelSum + (nodeInfo.maxRanks - 1)
                     if tabInfo and specializationStruct then
                         specializationStruct.knowledgeMaxLevel = specializationStruct.knowledgeMaxLevel +
                             (nodeInfo.maxRanks - 1)
@@ -170,10 +172,14 @@ local ExtractProfessionData = function(professionIndex)
                 end
 
                 -- Should we use the treeID or something from the tabInfo?
-                professionStruct.specializations[treeID] = specializationStruct
+                professionStruct.specializations[treeID] = specializationStruct                
             end
         end
     end
+
+    -- Set the knowledge level and max level
+    professionStruct.knowledgeLevel = knowledgeLevelSum
+    professionStruct.knowledgeMaxLevel = knowledgeMaxLevelSum
 
     return professionStruct
 end

@@ -27,13 +27,14 @@ local dbDefaults = {
         lastUpdated = {}, -- Stores { [category] = timestamp } for last updated time for each category
         lastUpdatedISO = {}, -- Stores { [category] = ISO 8601 timestamp } for last updated time for each category
         logs = {}, -- Stores { [timestamp] = msg } for logs.
+        nextWeeklyReset = 0, -- Stores the server time for this character's next weekly reset processing
         -- Add other character-specific settings here later
     },
     profile = { -- Settings shared across characters using this profile
         debugMode = false,
     },
     global = { 
-        weeklyResetTime = 0,
+        weeklyResetTime = 0, -- Updated once per week.
     }
 }
 
@@ -89,12 +90,34 @@ function Module:TrackLastUpdated(category)
 end
 
 function Module:HandleWeeklyReset()
-    if type(self.db.global.weeklyResetTime) == "number" and self.db.global.weeklyResetTime <= GetServerTime() then
-        -- If this ever becomes more complex, we should delegate this to the modules.
-        self:UpdateCharDBKey("completedQuests", {})
-        WoWEfficiency:Print("|cFF00FF00DEBUG:|r Weekly reset done.")
+    local currentTime = GetServerTime()
+    local nextWeeklyReset = GetServerTime() + C_DateAndTime.GetSecondsUntilWeeklyReset()
+
+    -- Ensure nextWeeklyResetProcessTime is properly initialized (should be 0 from dbDefaults on first run for a char)
+    if type(self.db.char.nextWeeklyReset) ~= "number" then
+        self.db.char.nextWeeklyReset = 0
     end
-    self.db.global.weeklyResetTime = GetServerTime() + C_DateAndTime.GetSecondsUntilWeeklyReset()
+
+    if currentTime >= self.db.char.nextWeeklyReset then
+        -- It's time to process the weekly reset for this character.
+        self:UpdateCharDBKey("completedQuests", {})
+        -- Add other character-specific weekly resets here if needed in the future.
+
+        -- Track the next reset for this character.
+        self.db.char.nextWeeklyReset = nextWeeklyReset
+        
+        WoWEfficiency:Print("|cFFFF0000Weekly reset processed for this character.|r")
+    end
+
+    -- Update the global weekly reset time.
+    if type(self.db.global.weeklyResetTime) ~= "number" then
+        self.db.global.weeklyResetTime = 0
+    end
+
+    if currentTime >= self.db.global.weeklyResetTime then
+        -- Track the next reset for the global weekly reset time.
+        self.db.global.weeklyResetTime = nextWeeklyReset
+    end
 end
 
 function Module:WipeDB()

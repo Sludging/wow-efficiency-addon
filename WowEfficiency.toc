@@ -1,5 +1,5 @@
 # TODO: Get this from in-game /dump select(4, GetBuildInfo())
-## Interface: 99999 
+## Interface: 110107, 110105
 ## Title: Wow Efficiency
 ## Notes: A helper addon for the WoWEfficiency website.
 ## Author: Sludger

@@ -1,5 +1,5 @@
--- Get the addon name passed by WoW when loading the file
-local addonName = select(1, ...)
+-- Get the addon name and namespace passed by WoW when loading the file
+local addonName, addonNamespace = select(1, ...), select(2, ...)
 
 -- Get the main addon object
 ---@type WoWEfficiency_Addon
@@ -10,6 +10,9 @@ local WoWEfficiency = LibStub('AceAddon-3.0'):GetAddon(addonName)
 local Debug = WoWEfficiency:GetModule('Debug')
 ---@type WoWEfficiency_DB
 local db = WoWEfficiency:GetModule('DB')
+
+-- Get table utilities from addon namespace (loaded by Utils/Table.lua)
+local Table = addonNamespace.Utils and addonNamespace.Utils.Table
 
 -- Upvalue global functions
 local CQL_IsQuestFlaggedCompleted = C_QuestLog.IsQuestFlaggedCompleted
@@ -96,56 +99,21 @@ end
 --- Constants
 -------------------------------------------------
 
--- Helper function to flatten a structured quest table into a single array
-local function FlattenQuestTable(questStructure)
-    local flattened = {}
-    
-    for groupName, categories in pairs(questStructure) do
-        for categoryName, questIDs in pairs(categories) do
-            for _, questID in ipairs(questIDs) do
-                table.insert(flattened, questID)
-            end
-        end
-    end
-    
-    return flattened
-end
-
--- Helper function to load quest data from external files
-local function LoadQuestData()
-    local questData = {}
-    
-    -- Load profession quest data
-    local success, professionQuests = pcall(function()
-        return dofile("Data/Quests/Professions/_loader.lua")
-    end)
-    
-    if success and professionQuests then
-        questData.Professions = professionQuests
-    else
-        Debug:DebugPrint("!!! ERROR: Failed to load profession quest data. Using empty table.")
-        questData.Professions = {}
-    end
-    
-    -- Future: Load other quest types here
-    -- Example:
-    -- local success, eventQuests = pcall(function()
-    --     return dofile("Data/Quests/Events/_loader.lua")  
-    -- end)
-    -- if success and eventQuests then
-    --     questData.Events = eventQuests
-    -- end
-    
-    return questData
-end
-
--- Load structured quest data from external files
+-- Load structured quest data from the addon namespace
 -- Structure: GroupName = { SubGroupName = { CategoryName = { questID1, questID2, ... } } }
-local StructuredQuests = LoadQuestData()
+local StructuredQuests = {
+    Professions = addonNamespace.ProfessionQuests or {}
+}
+
+-- Flatten the quest structure and create constants
+local flattenedQuests = {}
+if Table and Table.FlattenQuestIDs then
+    flattenedQuests = Table:FlattenQuestIDs(StructuredQuests)
+end
 
 Module.Constants = {
     -- Flatten the structured quest data into the required format
-    TrackedQuestIDs = FlattenQuestTable(StructuredQuests),
+    TrackedQuestIDs = flattenedQuests,
     
     -- Expose the structured data for easier access if needed
     StructuredQuests = StructuredQuests

@@ -1,4 +1,11 @@
-return {
+-- Get the addon namespace
+local _, WowEfficiency = ...
+
+-- Initialize the ProfessionQuests table if it doesn't exist
+WowEfficiency.ProfessionQuests = WowEfficiency.ProfessionQuests or {}
+
+-- Populate Engineering quest data
+WowEfficiency.ProfessionQuests.Engineering = {
     Artisan = { 84128 },
     Darkmoon = { 29511 },
     Treasure = { 83260, 83261 },

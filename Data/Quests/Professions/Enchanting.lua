@@ -1,4 +1,11 @@
-return {
+-- Get the addon namespace
+local _, WowEfficiency = ...
+
+-- Initialize the ProfessionQuests table if it doesn't exist
+WowEfficiency.ProfessionQuests = WowEfficiency.ProfessionQuests or {}
+
+-- Populate Enchanting quest data
+WowEfficiency.ProfessionQuests.Enchanting = {
     Darkmoon = { 29510 },
     Gathering = { 84290, 84291, 84292, 84293, 84294, 84295 },
     Trainer = { 84084, 84085, 84086 },

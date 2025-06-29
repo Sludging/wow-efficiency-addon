@@ -85,6 +85,6 @@ function WoWEfficiency:ChatCommand(input)
     elseif command == "wipe" then
         db:WipeDB()
     else
-        self:Print("Unknown command: " .. command .. ". Usage: /we check | /we debug | /we wipe") -- Updated usage
+        self:Print("Unknown command: " .. command .. ". Usage: /we check | /we debug | /we wipe")
     end
 end

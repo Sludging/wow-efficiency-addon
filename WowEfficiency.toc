@@ -27,8 +27,7 @@ Utils\Table.lua
 Modules\DB.lua
 Modules\Debug.lua
 
-# Quest Data Files
-Data\Quests\Professions\_loader.lua
+# Quest Data Files - these populate the addon namespace when loaded
 Data\Quests\Professions\Alchemy.lua
 Data\Quests\Professions\Blacksmithing.lua
 Data\Quests\Professions\Enchanting.lua

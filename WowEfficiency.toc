@@ -28,6 +28,7 @@ Modules\DB.lua
 Modules\Debug.lua
 
 # Quest Data Files - these populate the addon namespace when loaded
+## Professions
 Data\Quests\Professions\Alchemy.lua
 Data\Quests\Professions\Blacksmithing.lua
 Data\Quests\Professions\Enchanting.lua
@@ -39,6 +40,8 @@ Data\Quests\Professions\Leatherworking.lua
 Data\Quests\Professions\Mining.lua
 Data\Quests\Professions\Skinning.lua
 Data\Quests\Professions\Tailoring.lua
+## Delves
+Data\Quests\Delves\TitanBelt.lua
 
 # Quests
 Modules\Quests.lua

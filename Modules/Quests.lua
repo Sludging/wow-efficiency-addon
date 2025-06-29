@@ -102,7 +102,8 @@ end
 -- Load structured quest data from the addon namespace
 -- Structure: GroupName = { SubGroupName = { CategoryName = { questID1, questID2, ... } } }
 local StructuredQuests = {
-    Professions = addonNamespace.ProfessionQuests or {}
+    Professions = addonNamespace.ProfessionQuests or {},
+    Delves = addonNamespace.DelveQuests or {}
 }
 
 -- Flatten the quest structure and create constants

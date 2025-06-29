@@ -26,6 +26,21 @@ Types.lua
 Utils\Table.lua
 Modules\DB.lua
 Modules\Debug.lua
+
+# Quest Data Files
+Data\Quests\Professions\_loader.lua
+Data\Quests\Professions\Alchemy.lua
+Data\Quests\Professions\Blacksmithing.lua
+Data\Quests\Professions\Enchanting.lua
+Data\Quests\Professions\Engineering.lua
+Data\Quests\Professions\Herbalism.lua
+Data\Quests\Professions\Inscription.lua
+Data\Quests\Professions\Jewelcrafting.lua
+Data\Quests\Professions\Leatherworking.lua
+Data\Quests\Professions\Mining.lua
+Data\Quests\Professions\Skinning.lua
+Data\Quests\Professions\Tailoring.lua
+
 # Quests
 Modules\Quests.lua
 # Professions

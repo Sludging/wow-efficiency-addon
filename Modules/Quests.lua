@@ -96,314 +96,57 @@ end
 --- Constants
 -------------------------------------------------
 
+-- Helper function to flatten a structured quest table into a single array
+local function FlattenQuestTable(questStructure)
+    local flattened = {}
+    
+    for groupName, categories in pairs(questStructure) do
+        for categoryName, questIDs in pairs(categories) do
+            for _, questID in ipairs(questIDs) do
+                table.insert(flattened, questID)
+            end
+        end
+    end
+    
+    return flattened
+end
+
+-- Helper function to load quest data from external files
+local function LoadQuestData()
+    local questData = {}
+    
+    -- Load profession quest data
+    local success, professionQuests = pcall(function()
+        return dofile("Data/Quests/Professions/_loader.lua")
+    end)
+    
+    if success and professionQuests then
+        questData.Professions = professionQuests
+    else
+        Debug:DebugPrint("!!! ERROR: Failed to load profession quest data. Using empty table.")
+        questData.Professions = {}
+    end
+    
+    -- Future: Load other quest types here
+    -- Example:
+    -- local success, eventQuests = pcall(function()
+    --     return dofile("Data/Quests/Events/_loader.lua")  
+    -- end)
+    -- if success and eventQuests then
+    --     questData.Events = eventQuests
+    -- end
+    
+    return questData
+end
+
+-- Load structured quest data from external files
+-- Structure: GroupName = { SubGroupName = { CategoryName = { questID1, questID2, ... } } }
+local StructuredQuests = LoadQuestData()
+
 Module.Constants = {
-    TrackedQuestIDs = {
-        -- Alchemy
-        -- Artisan
-        84133,
-        -- Darkmoon
-        29506,
-        -- Treasure
-        83253,
-        83255,
-        -- Treatise
-        83725,
-        -- Uniques
-        81146,
-        81147,
-        81148,
-        82633,
-        83058,
-        83840,
-        83841,
-        83842,
-        83843,
-        83844,
-        83845,
-        83846,
-        83847,
-
-        -- Blacksmithing
-        -- Artisan
-        84127,
-        -- Darkmoon
-        29508,
-        -- Treasure
-        83256,
-        83257,
-        -- Treatise
-        83726,
-        -- Uniques
-        82631,
-        83059,
-        83848,
-        83849,
-        83850,
-        83851,
-        83852,
-        83853,
-        83854,
-        83855,
-        84226,
-        84227,
-        84228,
-
-        -- Enchanting
-        -- Darkmoon
-        29510,
-        -- Gathering
-        84290,
-        84291,
-        84292,
-        84293,
-        84294,
-        84295,
-        -- Trainer
-        84084,
-        84085,
-        84086,
-        -- Treasure
-        83258,
-        83259,
-        -- Treatise
-        83727,
-        -- Uniques
-        81076,
-        81077,
-        81078,
-        82635,
-        83060,
-        83856,
-        83859,
-        83860,
-        83861,
-        83862,
-        83863,
-        83864,
-        83865,
-
-        -- Engineering
-        -- Artisan
-        84128,
-        -- Darkmoon
-        29511,
-        -- Treasure
-        83260,
-        83261,
-        -- Treatise
-        83728,
-        -- Uniques
-        82632,
-        83063,
-        83866,
-        83867,
-        83868,
-        83869,
-        83870,
-        83871,
-        83872,
-        83873,
-        84229,
-        84230,
-        84231,
-
-        -- Herbalism
-        -- Darkmoon
-        29514,
-        -- Gathering
-        81416,
-        81417,
-        81418,
-        81419,
-        81420,
-        81421,
-        -- Trainer
-        82916,
-        82958,
-        82962,
-        82965,
-        82970,
-        -- Treatise
-        83729,
-        -- Uniques
-        81422,
-        81423,
-        81424,
-        82630,
-        83066,
-        83874,
-        83875,
-        83876,
-        83877,
-        83878,
-        83879,
-        83880,
-        83881,
-
-        -- Inscription
-        -- Artisan
-        84129,
-        -- Darkmoon
-        29515,
-        -- Treasure
-        83262,
-        83264,
-        -- Treatise
-        83730,
-        -- Uniques
-        80749,
-        80750,
-        80751,
-        82636,
-        83064,
-        83882,
-        83883,
-        83884,
-        83885,
-        83886,
-        83887,
-        83888,
-        83889,
-
-        -- Jewelcrafting
-        -- Artisan
-        84130,
-        -- Darkmoon
-        29516,
-        -- Treasure
-        83265,
-        83266,
-        -- Treatise
-        83731,
-        -- Uniques
-        81259,
-        81260,
-        81261,
-        82637,
-        83065,
-        83890,
-        83891,
-        83892,
-        83893,
-        83894,
-        83895,
-        83896,
-        83897,
-
-        -- Leatherworking
-        -- Artisan
-        84131,
-        -- Darkmoon
-        29517,
-        -- Treasure
-        83267,
-        83268,
-        -- Treatise
-        83732,
-        -- Uniques
-        80978,
-        80979,
-        80980,
-        82626,
-        83068,
-        83898,
-        83899,
-        83900,
-        83901,
-        83902,
-        83903,
-        83904,
-        83905,
-
-        -- Mining
-        -- Darkmoon
-        29518,
-        -- Gathering
-        83049,
-        83050,
-        83051,
-        83052,
-        83053,
-        83054,
-        -- Trainer
-        83102,
-        83103,
-        83104,
-        83105,
-        83106,
-        -- Treatise
-        83733,
-        -- Uniques
-        81390,
-        81391,
-        81392,
-        82614,
-        83062,
-        83906,
-        83907,
-        83908,
-        83909,
-        83910,
-        83911,
-        83912,
-        83913,
-
-        -- Skinning
-        -- Darkmoon
-        29519,
-        -- Gathering
-        81459,
-        81460,
-        81461,
-        81462,
-        81463,
-        81464,
-        -- Trainer
-        82992,
-        82993,
-        83097,
-        83098,
-        83100,
-        -- Treatise
-        83734,
-        -- Uniques
-        82596,
-        83067,
-        83914,
-        83915,
-        83916,
-        83917,
-        83918,
-        83919,
-        83920,
-        83921,
-        84232,
-        84233,
-        84234,
-
-        -- Tailoring
-        -- Artisan
-        84132,
-        -- Darkmoon
-        29520,
-        -- Treasure
-        83269,
-        83270,
-        -- Treatise
-        83735,
-        -- Uniques
-        80871,
-        80872,
-        80873,
-        82634,
-        83061,
-        83922,
-        83923,
-        83924,
-        83925,
-        83926,
-        83927,
-        83928,
-        83929,
-    }
+    -- Flatten the structured quest data into the required format
+    TrackedQuestIDs = FlattenQuestTable(StructuredQuests),
+    
+    -- Expose the structured data for easier access if needed
+    StructuredQuests = StructuredQuests
 }

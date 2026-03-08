@@ -56,16 +56,26 @@ function Module:UpdateConcentration()
 
     local professionData = professionsDB[skillLineID]
 
-    -- Get the concentration info for the skill line
-    local skillVariantID = Module.Constants[skillLineID]
-    local currencyID = C_TradeSkillUI.GetConcentrationCurrencyID(skillVariantID)
-    local currencyInfo = C_CurrencyInfo.GetCurrencyInfo(currencyID)
-    if currencyInfo then
-        local concentrationStruct = GetConcentrationStruct(currencyID)
-        concentrationStruct.amount = currencyInfo.quantity
-        concentrationStruct.maxQuantity = currencyInfo.maxQuantity
-        concentrationStruct.rechargingDurationMS = currencyInfo.rechargingCycleDurationMS
-        professionData.concentration = concentrationStruct
+    -- Get concentration info for each expansion's variant
+    local expansionConstants = Module.Constants[skillLineID]
+    if not expansionConstants then
+        return
+    end
+
+    for expansionName, skillVariantID in pairs(expansionConstants) do
+        if type(skillVariantID) == "number" and professionData[expansionName] then
+            local currencyID = C_TradeSkillUI.GetConcentrationCurrencyID(skillVariantID)
+            if currencyID and currencyID > 0 then
+                local currencyInfo = C_CurrencyInfo.GetCurrencyInfo(currencyID)
+                if currencyInfo then
+                    local concentrationStruct = GetConcentrationStruct(currencyID)
+                    concentrationStruct.amount = currencyInfo.quantity
+                    concentrationStruct.maxQuantity = currencyInfo.maxQuantity
+                    concentrationStruct.rechargingDurationMS = currencyInfo.rechargingCycleDurationMS
+                    professionData[expansionName].concentration = concentrationStruct
+                end
+            end
+        end
     end
 
     professionsDB[skillLineID] = professionData

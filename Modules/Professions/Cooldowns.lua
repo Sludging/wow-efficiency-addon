@@ -121,11 +121,20 @@ function Module:UpdateCooldowns()
 
     Debug:DebugPrint("Updating cooldowns")
 
-    for _, recipeID in pairs(cooldowns) do
-        local recipeCooldowns = GetRecipeCooldowns(recipeID)
-        -- Add the cooldown struct to the profession data
-        if recipeCooldowns then
-            professionData.cooldowns[recipeID] = recipeCooldowns
+    -- Iterate over expansion entries within the cooldown constants for this profession
+    for expansionName, recipeList in pairs(cooldowns) do
+        if type(recipeList) == "table" and professionData[expansionName] then
+            -- Ensure cooldowns sub-table exists
+            if not professionData[expansionName].cooldowns then
+                professionData[expansionName].cooldowns = {}
+            end
+
+            for _, recipeID in pairs(recipeList) do
+                local recipeCooldowns = GetRecipeCooldowns(recipeID)
+                if recipeCooldowns then
+                    professionData[expansionName].cooldowns[recipeID] = recipeCooldowns
+                end
+            end
         end
     end
 

@@ -44,6 +44,9 @@ function Module:OnInitialize()
 
     -- Handle weekly reset
     self:HandleWeeklyReset()
+
+    -- Migrate old flat profession schema to expansion-keyed schema
+    self:MigrateSchema()
 end
 
 function Module:IsCharDBReady()
@@ -117,6 +120,42 @@ function Module:HandleWeeklyReset()
     if currentTime >= self.db.global.weeklyResetTime then
         -- Track the next reset for the global weekly reset time.
         self.db.global.weeklyResetTime = nextWeeklyReset
+    end
+end
+
+-- Fields that belong under an expansion sub-key
+local expansionFields = {
+    "level", "maxLevel", "knowledgeLevel", "knowledgeMaxLevel",
+    "knowledgeUnspent", "catchUpCurrencyInfo", "specializations",
+    "cooldowns", "concentration", "professionName",
+}
+
+function Module:MigrateSchema()
+    if not self:IsCharDBReady() then return end
+
+    local professions = self.db.char.professions
+    if not professions then return end
+
+    for skillLineID, data in pairs(professions) do
+        if type(data) ~= "table" then
+            -- Skip non-table entries
+        elseif data.TWW then
+            -- Already migrated, skip (idempotent guard)
+        else
+            -- Check if there are any expansion fields to migrate
+            local twwData = nil
+            for _, field in ipairs(expansionFields) do
+                if data[field] ~= nil then
+                    if not twwData then twwData = {} end
+                    twwData[field] = data[field]
+                    data[field] = nil
+                end
+            end
+
+            if twwData then
+                data.TWW = twwData
+            end
+        end
     end
 end
 

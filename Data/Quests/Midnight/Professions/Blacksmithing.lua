@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Blacksmithing = {
     Artisan = { 93691 },
     Treasure = { 93530, 93531 },
     Treatise = { 95128 },
-    -- TODO: Unique treasure quest IDs (8 per profession, need in-game discovery)
+    Uniques = { 89177, 89178, 89179, 89180, 89181, 89182, 89183, 89184, 93795 },
 }

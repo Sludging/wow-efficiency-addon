@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Leatherworking = {
     Artisan = { 93695 },
     Treasure = { 93540, 93541 },
     Treatise = { 95134 },
-    -- TODO: Unique treasure quest IDs (8 per profession, need in-game discovery)
+    Uniques = { 89089, 89090, 89091, 89092, 89093, 89094, 89095, 89096, 92371 },
 }

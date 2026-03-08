@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Enchanting = {
     Artisan = { 93698, 93699 },
     Treasure = { 93532, 93533 },
     Treatise = { 95129 },
-    -- TODO: Unique treasure quest IDs (8 per profession, need in-game discovery)
+    Uniques = { 89100, 89101, 89102, 89103, 89104, 89105, 89106, 89107, 92186, 92374 },
 }

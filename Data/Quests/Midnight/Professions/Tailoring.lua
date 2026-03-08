@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Tailoring = {
     Artisan = { 93696 },
     Treasure = { 93542, 93543 },
     Treatise = { 95137 },
-    -- TODO: Unique treasure quest IDs (8 per profession, need in-game discovery)
+    Uniques = { 89078, 89079, 89080, 89081, 89082, 89083, 89084, 89085, 93201 },
 }

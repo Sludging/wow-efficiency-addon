@@ -9,5 +9,5 @@ WowEfficiency.ProfessionQuests.Midnight = WowEfficiency.ProfessionQuests.Midnigh
 WowEfficiency.ProfessionQuests.Midnight.Herbalism = {
     Artisan = { 93700, 93702, 93703, 93704 },
     Treatise = { 95130 },
-    -- TODO: Unique treasure quest IDs (8 per profession, need in-game discovery)
+    Uniques = { 89155, 89156, 89157, 89158, 89159, 89160, 89161, 89162, 92174, 93411 },
 }

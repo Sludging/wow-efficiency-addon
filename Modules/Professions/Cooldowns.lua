@@ -166,14 +166,25 @@ Module.Constants = {
             430621, -- Volatile Stone
             430620, -- Volatile Weaving
         },
-        Midnight = {},
+        Midnight = {
+            1230856, -- Wondrous Synergist
+            -- Transmute: Motes
+            1230887, -- Transmute: Mote of Wild Magic
+            1230888, -- Transmute: Mote of Pure Void
+            1230889, -- Transmute: Mote of Primal Energy
+            1230890, -- Transmute: Mote of Light
+            -- Transmute: Reagents
+            1230855, -- Composite Flora
+            1230891, -- Box of Rocks
+            1230892, -- Bouquet of Herbs
+            1230893, -- School of Gems
+        },
     },
     -- Blacksmithing
     [164] = {
         TWW = {
             453727, -- Everburning
         },
-        Midnight = {},
     },
     -- Engineering
     [202] = {
@@ -181,7 +192,6 @@ Module.Constants = {
             447374, -- BoxOBooms
             447312, -- Invent
         },
-        Midnight = {},
     },
     -- Jewelcrafting
     [755] = {
@@ -192,7 +202,6 @@ Module.Constants = {
             435339, -- Ruby Prism
             435370, -- Sapphire Prism
         },
-        Midnight = {},
     },
     -- Tailoring
     [197] = {
@@ -200,6 +209,9 @@ Module.Constants = {
             446928, -- Dawnweave
             446927, -- Duskweave
         },
-        Midnight = {},
+        Midnight = {
+            1227926, -- Arcanoweave Bolt
+            1228060, -- Sunfire Silk Bolt
+        },
     },
 }

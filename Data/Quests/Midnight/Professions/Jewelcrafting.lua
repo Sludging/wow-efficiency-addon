@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Jewelcrafting = {
     Artisan = { 93694 },
     Treasure = { 93539, 93538 },
     Treatise = { 95133 },
-    -- TODO: Unique treasure quest IDs (8 per profession, need in-game discovery)
+    Uniques = { 89122, 89123, 89124, 89125, 89126, 89127, 89128, 89129, 93222 },
 }

@@ -24,10 +24,10 @@ Each feature area is its own Ace module to enforce clear boundaries:
 
 ### Data Files vs Module Code
 
-Quest IDs live in `Data/Quests/` as pure data files separate from logic. This is intentional:
-- Data files populate the shared addon namespace at load time (e.g., `WowEfficiency.ProfessionQuests.Alchemy = { ... }`)
+Quest IDs live in `Data/Quests/` as pure data files separate from logic, organized into subdirectories: `Shared/` (cross-expansion quests like Darkmoon), `TWW/Professions/`, `TWW/Delves/`, and `Midnight/Professions/`. This is intentional:
+- Data files populate the shared addon namespace at load time (e.g., `WowEfficiency.ProfessionQuests.TWW.Alchemy = { ... }`, `WowEfficiency.ProfessionQuests.Shared.Darkmoon = { ... }`)
 - The Quests module reads from the namespace and flattens everything via `Table:FlattenQuestIDs()`
-- This means adding new quests never requires touching module logic - just data files and the TOC
+- This means adding new quests or a new expansion never requires touching module logic - just data files and the TOC
 
 ### Weekly Reset Handling
 
@@ -35,11 +35,11 @@ The DB module tracks `nextWeeklyReset` per character. On login, if server time h
 
 ### Level Gate
 
-All data collection guards on level 70+ because the tracked content (TWW professions, current-expansion quests) isn't relevant to lower-level characters.
+Data collection uses per-expansion minimum levels: TWW requires level 70+, Midnight requires level 80+. The Professions module gates extraction per-expansion inside its loop using `minLevel` from each expansion's Constants entry. The Quests module gates on level 70 (the lowest expansion minimum) so quest tracking activates as soon as any expansion content is relevant.
 
 ### Profession Constants
 
-Each profession module file has a `Constants` table keyed by `skillLineID` (Blizzard's profession identifier). These map to `skillLineVariantID` (the TWW-specific variant) and other metadata. When Blizzard adds a new expansion, these variant IDs will need updating. The cooldowns constants list specific `recipeID`s that have daily/charge-based cooldowns.
+All Constants tables use a profession-first, expansion-second keying pattern: `Constants[skillLineID].TWW`, `Constants[skillLineID].Midnight`. Each expansion sub-key contains `minLevel`, `skillLineVariantID`, `catchUpCurrencyID`, and (for crafting professions) `concentrationCurrencyID`. The DB stores profession data the same way: `professions[skillLineID].TWW = { level, maxLevel, ... }`. Sub-module constants (Cooldowns, Concentration) follow the same pattern. The cooldowns constants list expansion-specific `recipeID`s that have daily/charge-based cooldowns.
 
 ## TOC Load Order
 
@@ -47,7 +47,7 @@ The TOC file controls what WoW loads and in what order. The ordering is intentio
 1. Libraries first (they provide the framework)
 2. `Init.lua` creates the addon object that everything else references
 3. `DB` and `Debug` modules next since all other modules depend on them
-4. Data files before `Modules/Quests.lua` so the namespace is populated when the Quests module reads it
+4. Data files before `Modules/Quests.lua` so the namespace is populated when the Quests module reads it. Data files are ordered: `Data\Quests\Shared\` → `Data\Quests\TWW\` → `Data\Quests\Midnight\`
 5. `Core.lua` last because it wires up slash commands that reference all modules
 
 **Any new `.lua` file must be added to the TOC or WoW silently ignores it.** TOC paths use backslashes.

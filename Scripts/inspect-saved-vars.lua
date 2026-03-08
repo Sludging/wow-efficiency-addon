@@ -63,11 +63,26 @@ for i = 1, math.min(count, #characters) do
         for skillId, prof in pairs(c.data.professions) do
             if type(prof) == "table" then
                 local name = prof.name or ("skillLine " .. tostring(skillId))
-                print(string.format("    [%d] %s - Level %s/%s, Knowledge %s/%s",
-                    skillId,
-                    name,
-                    tostring(prof.level or "?"), tostring(prof.maxLevel or "?"),
-                    tostring(prof.knowledgeLevel or "?"), tostring(prof.knowledgeMaxLevel or "?")))
+                -- Check if this is old-schema (flat) or new-schema (expansion-keyed)
+                if prof.level then
+                    -- Old schema: flat fields at top level (pre-migration)
+                    print(string.format("    [%d] %s - Level %s/%s, Knowledge %s/%s",
+                        skillId,
+                        name,
+                        tostring(prof.level or "?"), tostring(prof.maxLevel or "?"),
+                        tostring(prof.knowledgeLevel or "?"), tostring(prof.knowledgeMaxLevel or "?")))
+                else
+                    -- New schema: expansion sub-keys
+                    print(string.format("    [%d] %s", skillId, name))
+                    for key, value in pairs(prof) do
+                        if type(value) == "table" then
+                            print(string.format("      %s - Level %s/%s, Knowledge %s/%s",
+                                key,
+                                tostring(value.level or "?"), tostring(value.maxLevel or "?"),
+                                tostring(value.knowledgeLevel or "?"), tostring(value.knowledgeMaxLevel or "?")))
+                        end
+                    end
+                end
             end
         end
     end

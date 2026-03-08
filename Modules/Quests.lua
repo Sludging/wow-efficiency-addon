@@ -52,6 +52,7 @@ end
 -- Checks all quests in the trackedQuestIDs list and updates the database
 function Module:UpdateAllTrackedQuests()
     local playerLevel = UnitLevel("player")
+    -- 70 is the minimum level across all tracked expansions (TWW=70, Midnight=80)
     if playerLevel < 70 then
         return
     end

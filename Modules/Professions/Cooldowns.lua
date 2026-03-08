@@ -140,42 +140,57 @@ end
 Module.Constants = {
     -- Alchemy
     [171] = {
-        430345, -- twwAlchemyMeticulous
-        430624, -- twwAlchemyGleamingGlory
-        449938, -- Gleaming Chaos
-        -- Transmutes
-        430618, -- Mercurial Blessings
-        449573, -- Mercurial Coalescence
-        449571, -- Mercurial Herbs
-        430619, -- Mercurial Storms
-        430622, -- Ominous Call
-        449574, -- Ominous Coalescence
-        430623, -- Ominous Gloom
-        449572, -- Ominous Herbs
-        449575, -- Volatile Coalescence
-        430621, -- Volatile Stone
-        430620, -- Volatile Weaving
+        TWW = {
+            430345, -- twwAlchemyMeticulous
+            430624, -- twwAlchemyGleamingGlory
+            449938, -- Gleaming Chaos
+            -- Transmutes
+            430618, -- Mercurial Blessings
+            449573, -- Mercurial Coalescence
+            449571, -- Mercurial Herbs
+            430619, -- Mercurial Storms
+            430622, -- Ominous Call
+            449574, -- Ominous Coalescence
+            430623, -- Ominous Gloom
+            449572, -- Ominous Herbs
+            449575, -- Volatile Coalescence
+            430621, -- Volatile Stone
+            430620, -- Volatile Weaving
+        },
+        Midnight = {},
     },
     -- Blacksmithing
     [164] = {
-        453727, -- Everburning
+        TWW = {
+            453727, -- Everburning
+        },
+        Midnight = {},
     },
     -- Engineering
     [202] = {
-        447374, -- BoxOBooms
-        447312, -- Invent
+        TWW = {
+            447374, -- BoxOBooms
+            447312, -- Invent
+        },
+        Midnight = {},
     },
     -- Jewelcrafting
     [755] = {
-        435337, -- Amber Prism
-        435338, -- Emerald Prism
-        435369, -- Onyx Prism
-        435339, -- Ruby Prism
-        435370, -- Sapphire Prism
+        TWW = {
+            435337, -- Amber Prism
+            435338, -- Emerald Prism
+            435369, -- Onyx Prism
+            435339, -- Ruby Prism
+            435370, -- Sapphire Prism
+        },
+        Midnight = {},
     },
     -- Tailoring
     [197] = {
-        446928, -- Dawnweave
-        446927, -- Duskweave
-    }
+        TWW = {
+            446928, -- Dawnweave
+            446927, -- Duskweave
+        },
+        Midnight = {},
+    },
 }

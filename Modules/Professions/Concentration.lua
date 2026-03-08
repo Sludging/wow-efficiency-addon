@@ -77,16 +77,16 @@ function Module:UpdateConcentration()
 end
 
 Module.Constants = {
-    -- [SkillLineID] -> skillLineVariantID
-    [171] = 2871,
-    [164] = 2872,
-    [333] = 2874,
-    [202] = 2875,
-    [182] = 2877,
-    [773] = 2878,
-    [755] = 2879,
-    [165] = 2880,
-    [186] = 2881,
-    [393] = 2882,
-    [197] = 2883,
+    -- [SkillLineID] -> { expansion = skillLineVariantID }
+    [171] = { TWW = 2871, Midnight = 2906 },
+    [164] = { TWW = 2872, Midnight = 2907 },
+    [333] = { TWW = 2874, Midnight = 2909 },
+    [202] = { TWW = 2875, Midnight = 2910 },
+    [182] = { TWW = 2877 },
+    [773] = { TWW = 2878, Midnight = 2913 },
+    [755] = { TWW = 2879, Midnight = 2914 },
+    [165] = { TWW = 2880, Midnight = 2915 },
+    [186] = { TWW = 2881 },
+    [393] = { TWW = 2882 },
+    [197] = { TWW = 2883, Midnight = 2918 },
 }

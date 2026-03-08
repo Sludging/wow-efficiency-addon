@@ -215,73 +215,70 @@ end
 -------------------------------------------------
 
 Module.Constants = {
-    -- [SkillLineID] -> Data
-    Base = {
         [171] = {
             name = "Alchemy",
             skillLineID = 171,
-            skillLineVariantID = 2871,
-            catchUpCurrencyID = 3057,
+        TWW = { minLevel = 70, skillLineVariantID = 2871, catchUpCurrencyID = 3057 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2906, catchUpCurrencyID = 3189 },
         },
         [164] = {
             name = "Blacksmithing",
             skillLineID = 164,
-            skillLineVariantID = 2872,
-            catchUpCurrencyID = 3058,
+        TWW = { minLevel = 70, skillLineVariantID = 2872, catchUpCurrencyID = 3058 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2907, catchUpCurrencyID = 3199 },
         },
         [333] = {
             name = "Enchanting",
             skillLineID = 333,
-            skillLineVariantID = 2874,
-            catchUpCurrencyID = 3059,
+        TWW = { minLevel = 70, skillLineVariantID = 2874, catchUpCurrencyID = 3059 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2909, catchUpCurrencyID = 3198 },
         },
         [202] = {
             name = "Engineering",
             skillLineID = 202,
-            skillLineVariantID = 2875,
-            catchUpCurrencyID = 3060,
+        TWW = { minLevel = 70, skillLineVariantID = 2875, catchUpCurrencyID = 3060 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2910, catchUpCurrencyID = 3197 },
         },
         [182] = {
             name = "Herbalism",
             skillLineID = 182,
-            skillLineVariantID = 2877,
-            catchUpCurrencyID = 3061,
+        TWW = { minLevel = 70, skillLineVariantID = 2877, catchUpCurrencyID = 3061 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2912, catchUpCurrencyID = 3196 },
         },
         [773] = {
             name = "Inscription",
             skillLineID = 773,
-            skillLineVariantID = 2878,
-            catchUpCurrencyID = 3062,
+        TWW = { minLevel = 70, skillLineVariantID = 2878, catchUpCurrencyID = 3062 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2913, catchUpCurrencyID = 3195 },
         },
         [755] = {
             name = "Jewelcrafting",
             skillLineID = 755,
-            skillLineVariantID = 2879,
-            catchUpCurrencyID = 3063,
+        TWW = { minLevel = 70, skillLineVariantID = 2879, catchUpCurrencyID = 3063 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2914, catchUpCurrencyID = 3194 },
         },
         [165] = {
             name = "Leatherworking",
             skillLineID = 165,
-            skillLineVariantID = 2880,
-            catchUpCurrencyID = 3064,
+        TWW = { minLevel = 70, skillLineVariantID = 2880, catchUpCurrencyID = 3064 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2915, catchUpCurrencyID = 3193 },
         },
         [186] = {
             name = "Mining",
             skillLineID = 186,
-            skillLineVariantID = 2881,
-            catchUpCurrencyID = 3065,
+        TWW = { minLevel = 70, skillLineVariantID = 2881, catchUpCurrencyID = 3065 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2916, catchUpCurrencyID = 3192 },
         },
         [393] = {
             name = "Skinning",
             skillLineID = 393,
-            skillLineVariantID = 2882,
-            catchUpCurrencyID = 3066,
+        TWW = { minLevel = 70, skillLineVariantID = 2882, catchUpCurrencyID = 3066 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2917, catchUpCurrencyID = 3191 },
         },
         [197] = {
             name = "Tailoring",
             skillLineID = 197,
-            skillLineVariantID = 2883,
-            catchUpCurrencyID = 3067,
-        }
+        TWW = { minLevel = 70, skillLineVariantID = 2883, catchUpCurrencyID = 3067 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2918, catchUpCurrencyID = 3190 },
     },
 }

@@ -7,7 +7,8 @@ WowEfficiency.ProfessionQuests.Midnight = WowEfficiency.ProfessionQuests.Midnigh
 
 -- Populate Herbalism quest data
 WowEfficiency.ProfessionQuests.Midnight.Herbalism = {
-    Artisan = { 93700, 93702, 93703, 93704 },
+    Gathering = { 81425, 81426, 81427, 81428, 81429, 81430 },
+    Trainer = { 93700, 93702, 93703, 93704 },
     Treatise = { 95130 },
     Uniques = { 89155, 89156, 89157, 89158, 89159, 89160, 89161, 89162, 92174, 93411 },
 }

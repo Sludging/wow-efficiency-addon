@@ -81,8 +81,10 @@ local ExtractExpansionData = function(variantConstants, existingData)
     local expansionStruct = existingData or GetExpansionProfStruct()
 
     -- Get per-expansion level data via the variant-specific API
+    -- C_TradeSkillUI.GetProfessionInfoBySkillLineID may return 0 when the profession window
+    -- hasn't been opened yet. Only overwrite stored data when we get a real value.
     local variantInfo = C_TradeSkillUI_GetProfessionInfoBySkillLineID(variantConstants.skillLineVariantID)
-    if variantInfo and variantInfo.skillLevel then
+    if variantInfo and variantInfo.maxSkillLevel and variantInfo.maxSkillLevel > 0 then
         expansionStruct.level = variantInfo.skillLevel
         expansionStruct.maxLevel = variantInfo.maxSkillLevel
         expansionStruct.professionName = variantInfo.professionName

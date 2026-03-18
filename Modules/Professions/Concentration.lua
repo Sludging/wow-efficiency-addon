@@ -56,16 +56,26 @@ function Module:UpdateConcentration()
 
     local professionData = professionsDB[skillLineID]
 
-    -- Get the concentration info for the skill line
-    local skillVariantID = Module.Constants[skillLineID]
-    local currencyID = C_TradeSkillUI.GetConcentrationCurrencyID(skillVariantID)
-    local currencyInfo = C_CurrencyInfo.GetCurrencyInfo(currencyID)
-    if currencyInfo then
-        local concentrationStruct = GetConcentrationStruct(currencyID)
-        concentrationStruct.amount = currencyInfo.quantity
-        concentrationStruct.maxQuantity = currencyInfo.maxQuantity
-        concentrationStruct.rechargingDurationMS = currencyInfo.rechargingCycleDurationMS
-        professionData.concentration = concentrationStruct
+    -- Get concentration info for each expansion's variant
+    local expansionConstants = Module.Constants[skillLineID]
+    if not expansionConstants then
+        return
+    end
+
+    for expansionName, skillVariantID in pairs(expansionConstants) do
+        if type(skillVariantID) == "number" and professionData[expansionName] then
+            local currencyID = C_TradeSkillUI.GetConcentrationCurrencyID(skillVariantID)
+            if currencyID and currencyID > 0 then
+                local currencyInfo = C_CurrencyInfo.GetCurrencyInfo(currencyID)
+                if currencyInfo then
+                    local concentrationStruct = GetConcentrationStruct(currencyID)
+                    concentrationStruct.amount = currencyInfo.quantity
+                    concentrationStruct.maxQuantity = currencyInfo.maxQuantity
+                    concentrationStruct.rechargingDurationMS = currencyInfo.rechargingCycleDurationMS
+                    professionData[expansionName].concentration = concentrationStruct
+                end
+            end
+        end
     end
 
     professionsDB[skillLineID] = professionData
@@ -77,16 +87,16 @@ function Module:UpdateConcentration()
 end
 
 Module.Constants = {
-    -- [SkillLineID] -> skillLineVariantID
-    [171] = 2871,
-    [164] = 2872,
-    [333] = 2874,
-    [202] = 2875,
-    [182] = 2877,
-    [773] = 2878,
-    [755] = 2879,
-    [165] = 2880,
-    [186] = 2881,
-    [393] = 2882,
-    [197] = 2883,
+    -- [SkillLineID] -> { expansion = skillLineVariantID }
+    [171] = { TWW = 2871, Midnight = 2906 },
+    [164] = { TWW = 2872, Midnight = 2907 },
+    [333] = { TWW = 2874, Midnight = 2909 },
+    [202] = { TWW = 2875, Midnight = 2910 },
+    [182] = { TWW = 2877 },
+    [773] = { TWW = 2878, Midnight = 2913 },
+    [755] = { TWW = 2879, Midnight = 2914 },
+    [165] = { TWW = 2880, Midnight = 2915 },
+    [186] = { TWW = 2881 },
+    [393] = { TWW = 2882 },
+    [197] = { TWW = 2883, Midnight = 2918 },
 }

@@ -1,5 +1,5 @@
 # TODO: Get this from in-game /dump select(4, GetBuildInfo())
-## Interface: 110107, 110200
+## Interface: 120001
 ## Title: Wow Efficiency
 ## Notes: A helper addon for the WoWEfficiency website.
 ## Author: Sludger
@@ -28,20 +28,33 @@ Modules\DB.lua
 Modules\Debug.lua
 
 # Quest Data Files - these populate the addon namespace when loaded
-## Professions
-Data\Quests\Professions\Alchemy.lua
-Data\Quests\Professions\Blacksmithing.lua
-Data\Quests\Professions\Enchanting.lua
-Data\Quests\Professions\Engineering.lua
-Data\Quests\Professions\Herbalism.lua
-Data\Quests\Professions\Inscription.lua
-Data\Quests\Professions\Jewelcrafting.lua
-Data\Quests\Professions\Leatherworking.lua
-Data\Quests\Professions\Mining.lua
-Data\Quests\Professions\Skinning.lua
-Data\Quests\Professions\Tailoring.lua
-## Delves
-Data\Quests\Delves\TitanBelt.lua
+## Shared (cross-expansion)
+Data\Quests\Shared\Darkmoon.lua
+## TWW
+Data\Quests\TWW\Professions\Alchemy.lua
+Data\Quests\TWW\Professions\Blacksmithing.lua
+Data\Quests\TWW\Professions\Enchanting.lua
+Data\Quests\TWW\Professions\Engineering.lua
+Data\Quests\TWW\Professions\Herbalism.lua
+Data\Quests\TWW\Professions\Inscription.lua
+Data\Quests\TWW\Professions\Jewelcrafting.lua
+Data\Quests\TWW\Professions\Leatherworking.lua
+Data\Quests\TWW\Professions\Mining.lua
+Data\Quests\TWW\Professions\Skinning.lua
+Data\Quests\TWW\Professions\Tailoring.lua
+Data\Quests\TWW\Delves\TitanBelt.lua
+## Midnight
+Data\Quests\Midnight\Professions\Alchemy.lua
+Data\Quests\Midnight\Professions\Blacksmithing.lua
+Data\Quests\Midnight\Professions\Enchanting.lua
+Data\Quests\Midnight\Professions\Engineering.lua
+Data\Quests\Midnight\Professions\Herbalism.lua
+Data\Quests\Midnight\Professions\Inscription.lua
+Data\Quests\Midnight\Professions\Jewelcrafting.lua
+Data\Quests\Midnight\Professions\Leatherworking.lua
+Data\Quests\Midnight\Professions\Mining.lua
+Data\Quests\Midnight\Professions\Skinning.lua
+Data\Quests\Midnight\Professions\Tailoring.lua
 
 # Quests
 Modules\Quests.lua

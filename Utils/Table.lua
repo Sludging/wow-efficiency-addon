@@ -49,15 +49,19 @@ function Table:Flatten(item, result)
 end
 
 -- Flatten a nested table structure, but only include valid quest IDs (positive numbers)
-function Table:FlattenQuestIDs(item, result)
+-- Deduplicates so shared quests across expansions are only tracked once
+function Table:FlattenQuestIDs(item, result, seen)
     local result = result or {}  -- create empty table, if none given during initialization
+    local seen = seen or {}
     if type(item) == 'table' then
         for k, v in pairs(item) do
-            self:FlattenQuestIDs(v, result)
+            self:FlattenQuestIDs(v, result, seen)
         end
     elseif type(item) == 'number' and item > 0 then
-        -- Only include positive numbers (valid quest IDs)
-        table.insert(result, item)
+        if not seen[item] then
+            seen[item] = true
+            table.insert(result, item)
+        end
     end
     return result
 end

@@ -121,11 +121,20 @@ function Module:UpdateCooldowns()
 
     Debug:DebugPrint("Updating cooldowns")
 
-    for _, recipeID in pairs(cooldowns) do
-        local recipeCooldowns = GetRecipeCooldowns(recipeID)
-        -- Add the cooldown struct to the profession data
-        if recipeCooldowns then
-            professionData.cooldowns[recipeID] = recipeCooldowns
+    -- Iterate over expansion entries within the cooldown constants for this profession
+    for expansionName, recipeList in pairs(cooldowns) do
+        if type(recipeList) == "table" and professionData[expansionName] then
+            -- Ensure cooldowns sub-table exists
+            if not professionData[expansionName].cooldowns then
+                professionData[expansionName].cooldowns = {}
+            end
+
+            for _, recipeID in pairs(recipeList) do
+                local recipeCooldowns = GetRecipeCooldowns(recipeID)
+                if recipeCooldowns then
+                    professionData[expansionName].cooldowns[recipeID] = recipeCooldowns
+                end
+            end
         end
     end
 
@@ -140,42 +149,69 @@ end
 Module.Constants = {
     -- Alchemy
     [171] = {
-        430345, -- twwAlchemyMeticulous
-        430624, -- twwAlchemyGleamingGlory
-        449938, -- Gleaming Chaos
-        -- Transmutes
-        430618, -- Mercurial Blessings
-        449573, -- Mercurial Coalescence
-        449571, -- Mercurial Herbs
-        430619, -- Mercurial Storms
-        430622, -- Ominous Call
-        449574, -- Ominous Coalescence
-        430623, -- Ominous Gloom
-        449572, -- Ominous Herbs
-        449575, -- Volatile Coalescence
-        430621, -- Volatile Stone
-        430620, -- Volatile Weaving
+        TWW = {
+            430345, -- twwAlchemyMeticulous
+            430624, -- twwAlchemyGleamingGlory
+            449938, -- Gleaming Chaos
+            -- Transmutes
+            430618, -- Mercurial Blessings
+            449573, -- Mercurial Coalescence
+            449571, -- Mercurial Herbs
+            430619, -- Mercurial Storms
+            430622, -- Ominous Call
+            449574, -- Ominous Coalescence
+            430623, -- Ominous Gloom
+            449572, -- Ominous Herbs
+            449575, -- Volatile Coalescence
+            430621, -- Volatile Stone
+            430620, -- Volatile Weaving
+        },
+        Midnight = {
+            1230856, -- Wondrous Synergist
+            -- Transmute: Motes
+            1230887, -- Transmute: Mote of Wild Magic
+            1230888, -- Transmute: Mote of Pure Void
+            1230889, -- Transmute: Mote of Primal Energy
+            1230890, -- Transmute: Mote of Light
+            -- Transmute: Reagents
+            1230855, -- Composite Flora
+            1230891, -- Box of Rocks
+            1230892, -- Bouquet of Herbs
+            1230893, -- School of Gems
+        },
     },
     -- Blacksmithing
     [164] = {
-        453727, -- Everburning
+        TWW = {
+            453727, -- Everburning
+        },
     },
     -- Engineering
     [202] = {
-        447374, -- BoxOBooms
-        447312, -- Invent
+        TWW = {
+            447374, -- BoxOBooms
+            447312, -- Invent
+        },
     },
     -- Jewelcrafting
     [755] = {
-        435337, -- Amber Prism
-        435338, -- Emerald Prism
-        435369, -- Onyx Prism
-        435339, -- Ruby Prism
-        435370, -- Sapphire Prism
+        TWW = {
+            435337, -- Amber Prism
+            435338, -- Emerald Prism
+            435369, -- Onyx Prism
+            435339, -- Ruby Prism
+            435370, -- Sapphire Prism
+        },
     },
     -- Tailoring
     [197] = {
-        446928, -- Dawnweave
-        446927, -- Duskweave
-    }
+        TWW = {
+            446928, -- Dawnweave
+            446927, -- Duskweave
+        },
+        Midnight = {
+            1227926, -- Arcanoweave Bolt
+            1228060, -- Sunfire Silk Bolt
+        },
+    },
 }

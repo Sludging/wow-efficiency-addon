@@ -30,6 +30,7 @@ local C_Traits_GetNodeInfo = C_Traits.GetNodeInfo
 local C_ProfSpecs_GetStateForTab = C_ProfSpecs.GetStateForTab
 local C_ProfSpecs_GetTabInfo = C_ProfSpecs.GetTabInfo
 local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
+local C_TradeSkillUI_GetProfessionInfoBySkillLineID = C_TradeSkillUI.GetProfessionInfoBySkillLineID
 
 function Module:OnInitialize()
     Debug:DebugPrint("Professions Module" .. " Initialized.")
@@ -52,11 +53,10 @@ function Module:OnEnable()
     )
 end
 
-local GetProfessionStruct = function(skillLineID, skillLevel, maxSkillLevel)
-    local baseline = {
-        skillLineID = skillLineID,
-        level = skillLevel,
-        maxLevel = maxSkillLevel,
+local GetExpansionProfStruct = function()
+    return {
+        level = 0,
+        maxLevel = 0,
         knowledgeLevel = 0,
         knowledgeMaxLevel = 0,
         knowledgeUnspent = 0,
@@ -64,21 +64,6 @@ local GetProfessionStruct = function(skillLineID, skillLevel, maxSkillLevel)
         cooldowns = {},
         concentration = nil,
     }
-
-    -- Get the current profession data
-    local current = db:GetCharDBKey("professions")[skillLineID]
-    -- If we don't have current profession data, return the baseline
-    if not current then
-        return baseline
-    end
-
-    -- Copy over the current profession data
-    for k, v in pairs(current) do
-        baseline[k] = v
-    end
-
-    -- Return the baseline (this allows us to add keys that don't exist in the current data)
-    return baseline
 end
 
 local GetSpecializationStruct = function(tabInfo, treeID, configID)
@@ -92,32 +77,30 @@ local GetSpecializationStruct = function(tabInfo, treeID, configID)
     }
 end
 
-local ExtractProfessionData = function(professionIndex)
-    -- Get baseline profession info
-    local name, icon, skillLevel, maxSkillLevel, numAbilities, spelloffset, skillLineID, skillModifier, specializationIndex, specializationOffset =
-        _GetProfessionInfo(professionIndex)
+local ExtractExpansionData = function(variantConstants, existingData)
+    local expansionStruct = existingData or GetExpansionProfStruct()
 
-    -- Map to our base profession data
-    local baseProfessionData = Module.Constants.Base[skillLineID]
-    if not baseProfessionData then
-        Debug:DebugPrint("!!! WARNING: Failed to find base profession data for skillLineID: " .. skillLineID)
-        return
+    -- Get per-expansion level data via the variant-specific API
+    -- C_TradeSkillUI.GetProfessionInfoBySkillLineID may return 0 when the profession window
+    -- hasn't been opened yet. Only overwrite stored data when we get a real value.
+    local variantInfo = C_TradeSkillUI_GetProfessionInfoBySkillLineID(variantConstants.skillLineVariantID)
+    if variantInfo and variantInfo.maxSkillLevel and variantInfo.maxSkillLevel > 0 then
+        expansionStruct.level = variantInfo.skillLevel
+        expansionStruct.maxLevel = variantInfo.maxSkillLevel
+        expansionStruct.professionName = variantInfo.professionName
     end
 
-    -- Initialize the profession struct
-    local professionStruct = GetProfessionStruct(skillLineID, skillLevel, maxSkillLevel)
-
     -- Currency info for the skill line contains the current unspent knowledge points.
-    local currencyInfo = C_ProfSpecs_GetCurrencyInfoForSkillLine(baseProfessionData.skillLineVariantID)
+    local currencyInfo = C_ProfSpecs_GetCurrencyInfoForSkillLine(variantConstants.skillLineVariantID)
     if currencyInfo and currencyInfo.numAvailable then
-        professionStruct.knowledgeUnspent = currencyInfo.numAvailable
+        expansionStruct.knowledgeUnspent = currencyInfo.numAvailable
     end
 
     -- Catch up currency info
-    if baseProfessionData.catchUpCurrencyID then
-        local catchUpCurrencyInfo = C_CurrencyInfo_GetCurrencyInfo(baseProfessionData.catchUpCurrencyID)
+    if variantConstants.catchUpCurrencyID then
+        local catchUpCurrencyInfo = C_CurrencyInfo_GetCurrencyInfo(variantConstants.catchUpCurrencyID)
         if catchUpCurrencyInfo and catchUpCurrencyInfo.quantity then
-            professionStruct.catchUpCurrencyInfo = catchUpCurrencyInfo
+            expansionStruct.catchUpCurrencyInfo = catchUpCurrencyInfo
         end
     end
 
@@ -126,7 +109,7 @@ local ExtractProfessionData = function(professionIndex)
     local knowledgeMaxLevelSum = 0
 
     -- Get the config ID for the skill line
-    local configID = C_ProfSpecs_GetConfigIDForSkillLine(baseProfessionData.skillLineVariantID)
+    local configID = C_ProfSpecs_GetConfigIDForSkillLine(variantConstants.skillLineVariantID)
     if configID and configID > 0 then
         -- Get the config info for the skill line
         local configInfo = C_Traits_GetConfigInfo(configID)
@@ -137,7 +120,7 @@ local ExtractProfessionData = function(professionIndex)
                 local treeNodes = C_Traits_GetTreeNodes(treeID)
                 if not treeNodes then
                     Debug:DebugPrint("!!! WARNING: Failed to get tree nodes for treeID: " .. treeID)
-                    return
+                    return expansionStruct
                 end
 
                 -- Get the tab info for the tree
@@ -150,7 +133,7 @@ local ExtractProfessionData = function(professionIndex)
                     local nodeInfo = C_Traits_GetNodeInfo(configID, nodeID)
                     if not nodeInfo then
                         Debug:DebugPrint("!!! WARNING: Failed to get node info for nodeID: " .. nodeID)
-                        return
+                        return expansionStruct
                     end
 
                     -- If the node has been purchased, add the knowledge level
@@ -172,16 +155,16 @@ local ExtractProfessionData = function(professionIndex)
                 end
 
                 -- Should we use the treeID or something from the tabInfo?
-                professionStruct.specializations[treeID] = specializationStruct                
+                expansionStruct.specializations[treeID] = specializationStruct
             end
         end
     end
 
     -- Set the knowledge level and max level
-    professionStruct.knowledgeLevel = knowledgeLevelSum
-    professionStruct.knowledgeMaxLevel = knowledgeMaxLevelSum
+    expansionStruct.knowledgeLevel = knowledgeLevelSum
+    expansionStruct.knowledgeMaxLevel = knowledgeMaxLevelSum
 
-    return professionStruct
+    return expansionStruct
 end
 
 function Module:UpdateProfessions()
@@ -195,13 +178,23 @@ function Module:UpdateProfessions()
     local professionsDB = db:GetCharDBKey("professions")
     for _, professionIndex in pairs({ prof1, prof2 }) do
         if professionIndex then
-            local professionData = ExtractProfessionData(professionIndex)
-            if professionData then
-                professionsDB[professionData.skillLineID] = professionData
-            else
-                Debug:DebugPrint("!!! WARNING: Failed to extract profession data for profession index: " ..
-                professionIndex)
+            local _, _, _, _, _, _, skillLineID = _GetProfessionInfo(professionIndex)
+
+            local profConstants = Module.Constants[skillLineID]
+            if not profConstants then
+                return
             end
+
+            local profStruct = professionsDB[skillLineID] or { skillLineID = skillLineID }
+            profStruct.skillLineID = skillLineID
+
+            for key, value in pairs(profConstants) do
+                if type(value) == "table" and playerLevel >= value.minLevel then
+                    profStruct[key] = ExtractExpansionData(value, profStruct[key])
+                end
+            end
+
+            professionsDB[skillLineID] = profStruct
         end
     end
 
@@ -215,73 +208,70 @@ end
 -------------------------------------------------
 
 Module.Constants = {
-    -- [SkillLineID] -> Data
-    Base = {
-        [171] = {
-            name = "Alchemy",
-            skillLineID = 171,
-            skillLineVariantID = 2871,
-            catchUpCurrencyID = 3057,
-        },
-        [164] = {
-            name = "Blacksmithing",
-            skillLineID = 164,
-            skillLineVariantID = 2872,
-            catchUpCurrencyID = 3058,
-        },
-        [333] = {
-            name = "Enchanting",
-            skillLineID = 333,
-            skillLineVariantID = 2874,
-            catchUpCurrencyID = 3059,
-        },
-        [202] = {
-            name = "Engineering",
-            skillLineID = 202,
-            skillLineVariantID = 2875,
-            catchUpCurrencyID = 3060,
-        },
-        [182] = {
-            name = "Herbalism",
-            skillLineID = 182,
-            skillLineVariantID = 2877,
-            catchUpCurrencyID = 3061,
-        },
-        [773] = {
-            name = "Inscription",
-            skillLineID = 773,
-            skillLineVariantID = 2878,
-            catchUpCurrencyID = 3062,
-        },
-        [755] = {
-            name = "Jewelcrafting",
-            skillLineID = 755,
-            skillLineVariantID = 2879,
-            catchUpCurrencyID = 3063,
-        },
-        [165] = {
-            name = "Leatherworking",
-            skillLineID = 165,
-            skillLineVariantID = 2880,
-            catchUpCurrencyID = 3064,
-        },
-        [186] = {
-            name = "Mining",
-            skillLineID = 186,
-            skillLineVariantID = 2881,
-            catchUpCurrencyID = 3065,
-        },
-        [393] = {
-            name = "Skinning",
-            skillLineID = 393,
-            skillLineVariantID = 2882,
-            catchUpCurrencyID = 3066,
-        },
-        [197] = {
-            name = "Tailoring",
-            skillLineID = 197,
-            skillLineVariantID = 2883,
-            catchUpCurrencyID = 3067,
-        }
+    [171] = {
+        name = "Alchemy",
+        skillLineID = 171,
+        TWW = { minLevel = 70, skillLineVariantID = 2871, catchUpCurrencyID = 3057 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2906, catchUpCurrencyID = 3189 },
+    },
+    [164] = {
+        name = "Blacksmithing",
+        skillLineID = 164,
+        TWW = { minLevel = 70, skillLineVariantID = 2872, catchUpCurrencyID = 3058 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2907, catchUpCurrencyID = 3199 },
+    },
+    [333] = {
+        name = "Enchanting",
+        skillLineID = 333,
+        TWW = { minLevel = 70, skillLineVariantID = 2874, catchUpCurrencyID = 3059 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2909, catchUpCurrencyID = 3198 },
+    },
+    [202] = {
+        name = "Engineering",
+        skillLineID = 202,
+        TWW = { minLevel = 70, skillLineVariantID = 2875, catchUpCurrencyID = 3060 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2910, catchUpCurrencyID = 3197 },
+    },
+    [182] = {
+        name = "Herbalism",
+        skillLineID = 182,
+        TWW = { minLevel = 70, skillLineVariantID = 2877, catchUpCurrencyID = 3061 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2912, catchUpCurrencyID = 3196 },
+    },
+    [773] = {
+        name = "Inscription",
+        skillLineID = 773,
+        TWW = { minLevel = 70, skillLineVariantID = 2878, catchUpCurrencyID = 3062 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2913, catchUpCurrencyID = 3195 },
+    },
+    [755] = {
+        name = "Jewelcrafting",
+        skillLineID = 755,
+        TWW = { minLevel = 70, skillLineVariantID = 2879, catchUpCurrencyID = 3063 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2914, catchUpCurrencyID = 3194 },
+    },
+    [165] = {
+        name = "Leatherworking",
+        skillLineID = 165,
+        TWW = { minLevel = 70, skillLineVariantID = 2880, catchUpCurrencyID = 3064 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2915, catchUpCurrencyID = 3193 },
+    },
+    [186] = {
+        name = "Mining",
+        skillLineID = 186,
+        TWW = { minLevel = 70, skillLineVariantID = 2881, catchUpCurrencyID = 3065 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2916, catchUpCurrencyID = 3192 },
+    },
+    [393] = {
+        name = "Skinning",
+        skillLineID = 393,
+        TWW = { minLevel = 70, skillLineVariantID = 2882, catchUpCurrencyID = 3066 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2917, catchUpCurrencyID = 3191 },
+    },
+    [197] = {
+        name = "Tailoring",
+        skillLineID = 197,
+        TWW = { minLevel = 70, skillLineVariantID = 2883, catchUpCurrencyID = 3067 },
+        Midnight = { minLevel = 80, skillLineVariantID = 2918, catchUpCurrencyID = 3190 },
     },
 }

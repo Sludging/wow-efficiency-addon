@@ -104,6 +104,7 @@ function Module:TrackGlobalLastUpdated(category)
     self.db.global.lastUpdated[category] = GetServerTime()
     self.db.global.lastUpdatedISO[category] = date("!%Y-%m-%dT%H:%M:%SZ")
 end
+
 function Module:HandleWeeklyReset()
     local currentTime = GetServerTime()
     local nextWeeklyReset = GetServerTime() + C_DateAndTime.GetSecondsUntilWeeklyReset()

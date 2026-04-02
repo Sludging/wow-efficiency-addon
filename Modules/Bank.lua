@@ -23,7 +23,6 @@ local Enum_BankType_Account = Enum.BankType.Account
 function Module:OnEnable()
     Debug:DebugPrint("Bank Module Enabled.")
 
-    -- TODO: Verify these event names in-game. They may differ from the expected names.
     self:RegisterEvent('BANKFRAME_OPENED', "UpdateWarbankGold")
     self:RegisterEvent('BANKFRAME_CLOSED', "UpdateWarbankGold")
 end

@@ -28,13 +28,19 @@ local dbDefaults = {
         lastUpdatedISO = {}, -- Stores { [category] = ISO 8601 timestamp } for last updated time for each category
         logs = {}, -- Stores { [timestamp] = msg } for logs.
         nextWeeklyReset = 0, -- Stores the server time for this character's next weekly reset processing
+        currencies = {}, -- Stores { [currencyID] = { currencyID, amount, maxQuantity } } for tracked currencies.
         -- Add other character-specific settings here later
     },
     profile = { -- Settings shared across characters using this profile
         debugMode = false,
     },
-    global = { 
+    global = {
         weeklyResetTime = 0, -- Updated once per week.
+        warbankGold = 0, -- Account bank (warbank) gold in copper, updated when bank is opened/closed.
+        region = "", -- Account region (e.g. "us", "eu"), set on login.
+        currencies = {}, -- Stores { [currencyID] = { [characterName] = { currencyID, amount, maxQuantity } } } for tracked currencies.
+        lastUpdated = {}, -- Stores { [category] = timestamp } for last updated time for each category
+        lastUpdatedISO = {}, -- Stores { [category] = ISO 8601 timestamp } for last updated time for each category
     }
 }
 
@@ -42,6 +48,8 @@ function Module:OnInitialize()
     -- Initialize database
     self.db = LibStub("AceDB-3.0"):New("WowEfficiencyDB", dbDefaults, true) -- 'true' for character-specific DB
 
+    -- Region is constant for the session; store globally for the website to read.
+    self.db.global.region = string.lower(GetCurrentRegionName())
     -- Handle weekly reset
     self:HandleWeeklyReset()
 
@@ -90,6 +98,11 @@ end
 function Module:TrackLastUpdated(category)
     self.db.char.lastUpdated[category] = GetServerTime()
     self.db.char.lastUpdatedISO[category] = date("!%Y-%m-%dT%H:%M:%SZ")
+end
+
+function Module:TrackGlobalLastUpdated(category)
+    self.db.global.lastUpdated[category] = GetServerTime()
+    self.db.global.lastUpdatedISO[category] = date("!%Y-%m-%dT%H:%M:%SZ")
 end
 
 function Module:HandleWeeklyReset()

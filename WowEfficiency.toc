@@ -62,5 +62,9 @@ Modules\Quests.lua
 Modules\Professions.lua
 Modules\Professions\Cooldowns.lua
 Modules\Professions\Concentration.lua
+# Bank
+Modules\Bank.lua
+# Currencies
+Modules\Currencies.lua
 # Core
 Core.lua

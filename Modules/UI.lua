@@ -6,18 +6,18 @@ local addonName = select(1, ...)
 local WoWEfficiency = LibStub('AceAddon-3.0'):GetAddon(addonName)
 
 -- Define the module
----@class WoWEfficiency_UI: AceModule, AceEvent-3.0
-local Module = WoWEfficiency:NewModule('UI', "AceEvent-3.0")
+---@class WoWEfficiency_UI: AceModule, AceEvent-3.0, AceBucket-3.0
+local Module = WoWEfficiency:NewModule('UI', "AceEvent-3.0", "AceBucket-3.0")
 
 -- ==============================================================================
 -- Module state
 -- ==============================================================================
 
 local sessionStartTime = 0
-local mainFrame   = nil  -- created once, persists for the session
+local mainFrame        = nil
 local scrollFrame = nil
-local scrollBar   = nil
-local scrollChild = nil  -- recreated on each content rebuild
+local scrollChild      = nil -- Now persists for the session
+local scrollBar        = nil
 local LibDBIcon
 local db
 
@@ -26,17 +26,14 @@ local db
 -- ==============================================================================
 
 local MIDNIGHT_MIN_LEVEL = 78
-
 local WIN_W     = 480
 local WIN_H     = 560
-local TITLE_H   = 44
--- scrollFrame: left margin 10, right margin 30 (scroll bar takes ~20)
+local TITLE_H            = 44
 local CONTENT_W = WIN_W - 10 - 30  -- 440
+local CARD_PAD           = 12
+local CARD_GAP           = 8
+local ROW_STEP           = 50
 
-local CARD_PAD  = 12   -- horizontal inset inside cards
-local CARD_GAP  = 8    -- vertical gap between cards
-
--- Backdrop reused for all styled frames (solid fill + 1px solid border)
 local SOLID_BD = {
     bgFile   = "Interface\\Buttons\\WHITE8X8",
     edgeFile = "Interface\\Buttons\\WHITE8X8",
@@ -56,6 +53,105 @@ local WHITE = "|cFFFFFFFF"
 local R     = "|r"
 
 -- ==============================================================================
+-- Utility function
+-- ==============================================================================
+local function FormatGold(value)
+    local gold, calc, gcoin
+
+    gold = value / 100 / 100
+
+    calc = BreakUpLargeNumbers(gold)
+
+    gcoin = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t "
+
+    return (calc .. gcoin)
+end
+
+-- ==============================================================================
+-- UI Object Pooling (Memory Leak Fix)
+-- ==============================================================================
+-- In WoW, UI elements (Frames, Textures, FontStrings) are not garbage collected.
+-- We use a standard pooling pattern. Instead of creating new elements on
+-- refresh, we check out dormant elements from the pool.
+-- On refresh, we send everything back to the pool to be reused.
+
+local UIPool = {
+    frames = {},
+    textures = {},
+    fontStrings = {}
+}
+
+local function AcquireFrame(parent, template)
+    for _, f in ipairs(UIPool.frames) do
+        if not f.inUse then
+            f.inUse = true
+            f:SetParent(parent)
+            f:Show()
+            return f
+        end
+    end
+    -- No dormant frame found; allocate a new one.
+    local f = CreateFrame("Frame", nil, parent, template)
+    f.inUse = true
+    table.insert(UIPool.frames, f)
+    return f
+end
+
+local function AcquireTexture(parent, layer)
+    for _, t in ipairs(UIPool.textures) do
+        if not t.inUse then
+            t.inUse = true
+            t:SetParent(parent)
+            t:SetDrawLayer(layer or "ARTWORK")
+            t:Show()
+            return t
+        end
+    end
+    local t = parent:CreateTexture(nil, layer or "ARTWORK")
+    t.inUse = true
+    table.insert(UIPool.textures, t)
+    return t
+end
+
+local function AcquireFontString(parent, layer, fontObject)
+    for _, fs in ipairs(UIPool.fontStrings) do
+        if not fs.inUse then
+            fs.inUse = true
+            fs:SetParent(parent)
+            fs:SetDrawLayer(layer or "OVERLAY")
+            fs:SetFontObject(fontObject)
+            fs:Show()
+            return fs
+        end
+    end
+    local fs = parent:CreateFontString(nil, layer or "OVERLAY")
+    fs.inUse = true
+    fs:SetFontObject(fontObject)
+    table.insert(UIPool.fontStrings, fs)
+    return fs
+end
+
+-- Resets all UI elements so they can be laid out fresh
+local function ReleaseAllUIElements()
+    for _, f in ipairs(UIPool.frames) do
+        f.inUse = false;
+        f:Hide();
+        f:ClearAllPoints()
+    end
+    for _, t in ipairs(UIPool.textures) do
+        t.inUse = false;
+        t:Hide();
+        t:ClearAllPoints();
+        t:SetTexture(nil)
+    end
+    for _, fs in ipairs(UIPool.fontStrings) do
+        fs.inUse = false;
+        fs:Hide();
+        fs:ClearAllPoints();
+        fs:SetText("")
+    end
+end
+-- ==============================================================================
 -- Status & formatting helpers
 -- ==============================================================================
 
@@ -71,25 +167,6 @@ local function WorstStatus(a, b)
     return "green"
 end
 
-local function FormatNumber(n)
-    local s = tostring(math.floor(n))
-    return (s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
-end
-
-local function FormatGold(copper)
-    if not copper or copper == 0 then return nil end
-    local gold   = math.floor(copper / 10000)
-    local silver = math.floor((copper % 10000) / 100)
-    local cop    = copper % 100
-    if gold > 0 then
-        return string.format("|cFFFFD700%sg|r |cFFC0C0C0%ds|r |cFFCD7F32%dc|r", FormatNumber(gold), silver, cop)
-    elseif silver > 0 then
-        return string.format("|cFFC0C0C0%ds|r |cFFCD7F32%dc|r", silver, cop)
-    else
-        return string.format("|cFFCD7F32%dc|r", cop)
-    end
-end
-
 local function FormatISO(isoStr)
     if not isoStr then return nil end
     return isoStr:gsub("T", " "):gsub("Z", "")
@@ -101,7 +178,7 @@ end
 
 -- Creates a dark styled card of fixed dimensions
 local function MakeCard(parent, h)
-    local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    local f = AcquireFrame(parent, "BackdropTemplate")
     f:SetSize(CONTENT_W, h)
     f:SetBackdrop(SOLID_BD)
     f:SetBackdropColor(0.12, 0.12, 0.15, 0.95)
@@ -111,7 +188,7 @@ end
 
 -- Thin horizontal rule inside a card, drawn at yFromTop pixels below card top
 local function CardRule(card, yFromTop)
-    local sep = card:CreateTexture(nil, "ARTWORK")
+    local sep = AcquireTexture(card, "ARTWORK")
     sep:SetColorTexture(0.28, 0.28, 0.35, 1)
     sep:SetHeight(1)
     sep:SetPoint("TOPLEFT",  card, "TOPLEFT",  CARD_PAD, -yFromTop)
@@ -120,43 +197,31 @@ end
 
 -- Gold title header with optional 22×22 icon, returns header bottom y (negative)
 local function CardHeader(card, title, iconTex)
+    local lbl = AcquireFontString(card, "OVERLAY", GameFontNormal)
+    lbl:SetText(GOLD .. title .. R)
+    lbl:SetJustifyH("LEFT")
     if iconTex then
-        local icon = card:CreateTexture(nil, "ARTWORK")
+        local icon = AcquireTexture(card, "ARTWORK")
         icon:SetSize(22, 22)
         icon:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, -9)
         icon:SetTexture(iconTex)
 
-        local lbl = card:CreateFontString(nil, "OVERLAY")
-        lbl:SetFontObject(GameFontNormal)
-        lbl:SetText(GOLD .. title .. R)
         lbl:SetPoint("LEFT",  icon, "RIGHT", 6, 0)
         lbl:SetPoint("RIGHT", card, "RIGHT", -CARD_PAD, 0)
-        lbl:SetJustifyH("LEFT")
     else
-        local lbl = card:CreateFontString(nil, "OVERLAY")
-        lbl:SetFontObject(GameFontNormal)
-        lbl:SetText(GOLD .. title .. R)
         lbl:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, -10)
-        lbl:SetPoint("RIGHT",   card, "RIGHT",   -CARD_PAD, 0)
-        lbl:SetJustifyH("LEFT")
+        lbl:SetPoint("RIGHT", card, "RIGHT", -CARD_PAD, 0)
     end
 end
 
--- Two-line sub-row: icon + white label, then gray detail text.
--- yOff is the y position relative to the card top (negative).
--- Returns the next yOff (accounts for both lines + a small gap).
-local ROW_STEP = 50  -- vertical space each sub-row consumes
-
 local function CardRow(card, yOff, label, status, detail)
-    local row = card:CreateFontString(nil, "OVERLAY")
-    row:SetFontObject(GameFontHighlight)
+    local row = AcquireFontString(card, "OVERLAY", GameFontHighlight)
     row:SetText(STATUS_ICONS[status] .. "  " .. WHITE .. label .. R)
     row:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, yOff)
     row:SetPoint("RIGHT",   card, "RIGHT",   -CARD_PAD, 0)
     row:SetJustifyH("LEFT")
 
-    local det = card:CreateFontString(nil, "OVERLAY")
-    det:SetFontObject(GameFontHighlightSmall)
+    local det = AcquireFontString(card, "OVERLAY", GameFontHighlightSmall)
     det:SetText(GRAY .. detail .. R)
     det:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD + 18, yOff - 18)
     det:SetPoint("RIGHT",   card, "RIGHT",   -CARD_PAD, 0)
@@ -185,9 +250,8 @@ local function NewLayout(parent)
     end
 
     function self:Heading(text, gap)
-        local f  = CreateFrame("Frame", nil, self.parent)
-        local fs = f:CreateFontString(nil, "OVERLAY")
-        fs:SetFontObject(GameFontNormal)
+        local f  = AcquireFrame(self.parent)
+        local fs = AcquireFontString(f, "OVERLAY", GameFontNormal)
         fs:SetText(GOLD .. text .. R)
         fs:SetAllPoints()
         fs:SetJustifyH("LEFT")
@@ -198,7 +262,7 @@ local function NewLayout(parent)
 end
 
 -- ==============================================================================
--- Card builders — one per data category
+-- Card builders
 -- ==============================================================================
 
 local function BuildLegend(parent)
@@ -209,8 +273,7 @@ local function BuildLegend(parent)
     local card = MakeCard(parent, h)
     CardRule(card, HEADER_H)
 
-    local title = card:CreateFontString(nil, "OVERLAY")
-    title:SetFontObject(GameFontNormal)
+    local title = AcquireFontString(card, "OVERLAY", GameFontNormal)
     title:SetText(WHITE .. "Status Guide" .. R)
     title:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, -10)
 
@@ -221,8 +284,7 @@ local function BuildLegend(parent)
     }
     local y = -(HEADER_H + 8)
     for _, e in ipairs(entries) do
-        local line = card:CreateFontString(nil, "OVERLAY")
-        line:SetFontObject(GameFontHighlightSmall)
+        local line = AcquireFontString(card, "OVERLAY", GameFontHighlightSmall)
         line:SetText(e.icon .. "  " .. GRAY .. e.text .. R)
         line:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, y)
         line:SetPoint("RIGHT",   card, "RIGHT",   -CARD_PAD, 0)
@@ -271,7 +333,6 @@ local function BuildProfCard(parent, skillLineID, profTexture, profName, charDB)
     -- Sub-row 2: Window Data (requires opening the profession window)
     local hasCooldowns     = Cooldowns.Constants[skillLineID] ~= nil
     local hasConcentration = Concentration.Constants[skillLineID] ~= nil
-
     local windowStatus = "green"
     local bestTs, bestISO = 0, nil
 
@@ -295,8 +356,8 @@ local function BuildProfCard(parent, skillLineID, profTexture, profName, charDB)
         local parts = {}
         if expData then
             if hasConcentration and expData.concentration and expData.concentration.amount then
-                table.insert(parts, WHITE .. "Concentration " .. expData.concentration.amount
-                    .. "/" .. expData.concentration.maxQuantity .. R)
+                table.insert(parts, WHITE .. "Concentration " .. BreakUpLargeNumbers(expData.concentration.amount)
+                    .. "/" .. BreakUpLargeNumbers(expData.concentration.maxQuantity) .. R)
             end
             if hasCooldowns and expData.cooldowns then
                 local n = 0
@@ -327,8 +388,9 @@ local function BuildWarbankCard(parent, globalDB)
         detail = "Open your Warbank to collect gold data."
     else
         local parts = {}
-        local goldStr = FormatGold(globalDB.warbankGold)
+        local goldStr = globalDB.warbankGold and FormatGold(globalDB.warbankGold) or nil
         if goldStr then table.insert(parts, goldStr) end
+        
         local ts = FormatISO(globalDB.lastUpdatedISO["warbankGold"])
         if ts then table.insert(parts, "updated " .. ts) end
         detail = #parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "Data collected."
@@ -355,7 +417,7 @@ local function BuildCurrenciesCard(parent, charDB)
         for currencyID, data in pairs(charDB.currencies or {}) do
             local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
             local name = info and info.name or ("Currency " .. currencyID)
-            table.insert(parts, WHITE .. name .. ": " .. (data.amount or 0) .. R)
+            table.insert(parts, WHITE .. name .. ": " .. BreakUpLargeNumbers(data.amount or 0) .. R)
         end
         local ts = FormatISO(charDB.lastUpdatedISO["currencies"])
         if ts then table.insert(parts, "updated " .. ts) end
@@ -385,9 +447,8 @@ function Module:PopulateContent()
 
     local playerLevel = UnitLevel("player")
     if playerLevel < MIDNIGHT_MIN_LEVEL then
-        local notice = CreateFrame("Frame", nil, scrollChild)
-        local lbl = notice:CreateFontString(nil, "OVERLAY")
-        lbl:SetFontObject(GameFontHighlightSmall)
+        local notice = AcquireFrame(scrollChild)
+        local lbl = AcquireFontString(notice, "OVERLAY", GameFontHighlightSmall)
         lbl:SetText(GRAY .. "Profession and currency tracking requires level "
             .. MIDNIGHT_MIN_LEVEL .. " (Midnight content)." .. R)
         lbl:SetAllPoints()
@@ -407,9 +468,8 @@ function Module:PopulateContent()
         table.sort(profs, function(a, b) return a.name < b.name end)
 
         if #profs == 0 then
-            local notice = CreateFrame("Frame", nil, scrollChild)
-            local lbl = notice:CreateFontString(nil, "OVERLAY")
-            lbl:SetFontObject(GameFontHighlightSmall)
+            local notice = AcquireFrame(scrollChild)
+            local lbl = AcquireFontString(notice, "OVERLAY", GameFontHighlightSmall)
             lbl:SetText(GRAY .. "No tracked professions found for this character." .. R)
             lbl:SetAllPoints()
             lbl:SetJustifyH("LEFT")
@@ -437,7 +497,7 @@ function Module:PopulateContent()
 end
 
 -- ==============================================================================
--- Window chrome (created once per session)
+-- Window chrome
 -- ==============================================================================
 
 function Module:CreateWindow()
@@ -479,7 +539,7 @@ function Module:CreateWindow()
     titleText:SetPoint("LEFT", titleBar, "LEFT", 14, 0)
     titleText:SetJustifyH("LEFT")
 
-    -- Standard WoW close button (no extra rectangle, no status bar)
+    -- Close button
     local closeBtn = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
     closeBtn:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", 4, 4)
     closeBtn:SetScript("OnClick", function() Module:HideWindow() end)
@@ -490,7 +550,7 @@ function Module:CreateWindow()
     scrollFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -30, 10)
     scrollFrame:EnableMouseWheel(true)
 
-    -- WoW-native scroll bar
+    -- Scroll bar
     scrollBar = CreateFrame("Slider", "WowEfficiencyScrollBar", scrollFrame, "UIPanelScrollBarTemplate")
     scrollBar:SetPoint("TOPLEFT",    scrollFrame, "TOPRIGHT",    4, -16)
     scrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 4, 16)
@@ -498,7 +558,6 @@ function Module:CreateWindow()
     scrollBar:SetValueStep(30)
     scrollBar:SetValue(0)
 
-    -- Scroll bar drives the scroll position; scroll frame reports range changes
     scrollBar:SetScript("OnValueChanged", function(self, value)
         scrollFrame:SetVerticalScroll(value)
     end)
@@ -512,6 +571,10 @@ function Module:CreateWindow()
         local new = math.min(math.max(scrollBar:GetValue() - delta * 30, min), max)
         scrollBar:SetValue(new)
     end)
+    -- Create scrollChild just ONCE to serve as the master container
+    scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollChild:SetSize(CONTENT_W, 10) -- Height scales automatically during PopulateContent
+    scrollFrame:SetScrollChild(scrollChild)
 end
 
 -- ==============================================================================
@@ -519,16 +582,31 @@ end
 -- ==============================================================================
 
 function Module:RebuildContent()
-    -- Discard previous scroll child (its child frames go with it)
-    if scrollChild then scrollChild:Hide() end
+    -- 1. Capture the current scroll position before we destroy anything
+    local currentScroll = scrollBar and scrollBar:GetValue() or 0
 
-    scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(CONTENT_W, 600)
-    scrollFrame:SetScrollChild(scrollChild)
-    scrollFrame:SetVerticalScroll(0)
-    scrollBar:SetValue(0)
+    -- 2. Free all previously created layouts back into the pool
+    ReleaseAllUIElements()
 
+    -- 3. Re-generate the cards from the pool
     self:PopulateContent()
+
+    -- 4. Restore the scroll position
+    if scrollFrame and scrollBar then
+        -- Force recalculate of the height of the newly populated content
+        scrollFrame:UpdateScrollChildRect() 
+        
+        -- Get the new maximum possible scroll depth
+        local maxScroll = math.max(0, scrollFrame:GetVerticalScrollRange() or 0)
+        
+        -- Ensure we don't try to scroll further down than the new content allows
+        currentScroll = math.min(currentScroll, maxScroll)
+        
+        -- Apply the restored position
+        scrollBar:SetMinMaxValues(0, maxScroll)
+        scrollBar:SetValue(currentScroll)
+        scrollFrame:SetVerticalScroll(currentScroll)
+    end
 end
 
 -- ==============================================================================
@@ -558,12 +636,13 @@ end
 function Module:OnEnable()
     sessionStartTime = GetServerTime()
     self:RegisterEvent('PLAYER_ENTERING_WORLD', 'OnPlayerEnteringWorld')
-    -- Refresh open window whenever data modules write new data.
-    -- UI.lua loads after Cooldowns, Concentration, and Bank, so their handlers
-    -- run first — data is written before RefreshWindow executes.
-    self:RegisterEvent('TRADE_SKILL_LIST_UPDATE', 'RefreshWindow')
-    self:RegisterEvent('BANKFRAME_CLOSED',        'RefreshWindow')
-    self:RegisterEvent('CURRENCY_DISPLAY_UPDATE', 'RefreshWindow')
+    -- Register bucket events for all data updates
+    self:RegisterBucketEvent({
+        "TRADE_SKILL_LIST_UPDATE",
+        "BANKFRAME_CLOSED",
+        "CURRENCY_DISPLAY_UPDATE",
+        "ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED",
+    }, 0.2, "RefreshWindow")
 end
 
 function Module:OnPlayerEnteringWorld()
@@ -576,6 +655,11 @@ function Module:OnPlayerEnteringWorld()
     end
 end
 
+function Module:RefreshWindow()
+    -- Only rebuild if the window actually exists and is currently visible to the user
+    if not mainFrame or not mainFrame:IsShown() then return end
+    self:RebuildContent()
+end
 -- ==============================================================================
 -- Window management
 -- ==============================================================================
@@ -598,9 +682,4 @@ end
 
 function Module:HideWindow()
     if mainFrame then mainFrame:Hide() end
-end
-
-function Module:RefreshWindow()
-    if not mainFrame or not mainFrame:IsShown() then return end
-    self:RebuildContent()
 end

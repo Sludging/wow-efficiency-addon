@@ -37,9 +37,10 @@ function WoWEfficiency:ChatCommand(input)
     if not input or input:trim() == "" then
         -- Show help or basic status if no subcommand is given
         self:Print("Usage:")
-        self:Print("/we check - Displays stored completed quests for the current character.")
-        self:Print("/we debug - Toggles debug mode on or off.")
-        self:Print("/we wipe  - Wipes all stored data for this addon (use with caution!).")
+        self:Print("/we check  - Displays stored completed quests for the current character.")
+        self:Print("/we debug  - Toggles debug mode on or off.")
+        self:Print("/we status - Opens the data status and onboarding panel.")
+        self:Print("/we wipe   - Wipes all stored data for this addon (use with caution!).")
         return
     end
 
@@ -82,6 +83,9 @@ function WoWEfficiency:ChatCommand(input)
         else
             self:Print("Database profile not yet initialized. Cannot change debug mode.")
         end
+    elseif command == "status" then
+        local UI = WoWEfficiency:GetModule('UI')
+        if UI then UI:ToggleWindow() end
     elseif command == "wipe" then
         db:WipeDB()
     else

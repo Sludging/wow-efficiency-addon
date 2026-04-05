@@ -35,6 +35,7 @@ function Module:UpdateWarbankGold()
     end
 
     db:GetDB().global.warbankGold = gold
+    db:TrackGlobalLastUpdated("warbankGold")
 
     Debug:DebugPrint("Warbank gold updated: " .. gold)
 end

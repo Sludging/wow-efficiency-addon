@@ -1,12 +1,59 @@
 -- Get the addon name passed by WoW when loading the file
-local addonName = select(1, ...)
+local addonName, addonNamespace = select(1, ...), select(2, ...)
 
 -- Get the main addon object
 ---@type WoWEfficiency_Addon
 local WoWEfficiency = LibStub('AceAddon-3.0'):GetAddon(addonName)
 
+-- Fetch shared functionality
+---@type WoWEfficiency_DB
+local db = WoWEfficiency:GetModule('DB')
+---@type WoWEfficiency_Professions_Cooldowns
+local CooldownsModule = WoWEfficiency:GetModule('Professions.Cooldowns')
+---@type WoWEfficiency_Professions_Concentration
+local ConcentrationModule = WoWEfficiency:GetModule('Professions.Concentration')
+
+-- Upvalue global API functions
+local C_Timer_After = C_Timer.After
+local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
+local _GetProfessions = GetProfessions
+local _GetProfessionInfo = GetProfessionInfo
+local _UnitLevel = UnitLevel
+local _GetServerTime = GetServerTime
+
+-- Upvalue frame utilities from Utils/Frame.lua
+-- Get Frame utilities from addon namespace (loaded by Utils/Frame.lua)
+local _FrameUtils  = addonNamespace.Utils and addonNamespace.Utils.Frame
+local MakeCard     = _FrameUtils.MakeCard
+local CardRule     = _FrameUtils.CardRule
+local CardHeader   = _FrameUtils.CardHeader
+local CardRow      = _FrameUtils.CardRow
+local NewLayout    = _FrameUtils.NewLayout
+local WIN_W        = _FrameUtils.WIN_W
+local WIN_H        = _FrameUtils.WIN_H
+local TITLE_H      = _FrameUtils.TITLE_H
+local CONTENT_W    = _FrameUtils.CONTENT_W
+local CARD_PAD     = _FrameUtils.CARD_PAD
+local ROW_STEP     = _FrameUtils.ROW_STEP
+local SOLID_BD     = _FrameUtils.SOLID_BD
+local STATUS_ICONS = _FrameUtils.STATUS_ICONS
+local GOLD         = _FrameUtils.GOLD
+local GRAY         = _FrameUtils.GRAY
+local WHITE        = _FrameUtils.WHITE
+local R            = _FrameUtils.R
 -- Define the module
+-- Creates a minimap-accessible status panel that shows profession and account data
+-- collection status. Each card displays what data has been collected this session,
+-- using a colour-coded status system (green/yellow/red).
 ---@class WoWEfficiency_UI: AceModule, AceEvent-3.0, AceBucket-3.0
+---@field CreateWindow fun(self)
+---@field ShowWindow fun(self)
+---@field HideWindow fun(self)
+---@field ToggleWindow fun(self)
+---@field CreateContent fun(self)
+---@field UpdateContent fun(self)
+---@field RefreshWindow fun(self)
+---@field OnPlayerEnteringWorld fun(self)
 local Module = WoWEfficiency:NewModule('UI', "AceEvent-3.0", "AceBucket-3.0")
 
 -- ==============================================================================
@@ -15,142 +62,41 @@ local Module = WoWEfficiency:NewModule('UI', "AceEvent-3.0", "AceBucket-3.0")
 
 local sessionStartTime = 0
 local mainFrame        = nil
-local scrollFrame = nil
-local scrollChild      = nil -- Now persists for the session
+local scrollFrame      = nil
+local scrollChild      = nil -- persists for the session; content frames are created once in CreateContent
 local scrollBar        = nil
-local LibDBIcon
-local db
+-- Stores references to every dynamic element created in CreateContent.
+-- UpdateContent calls SetText / SetTexture on these rather than recreating frames.
+local contentRefs = {
+    legendCard     = nil,
+    legendH        = 0,
+    profHeading    = nil, -- "Professions" section heading frame
+    levelNotice    = nil, -- shown when player is below MIDNIGHT_MIN_LEVEL
+    noProfNotice   = nil, -- shown when player has no tracked professions
+    profSlots      = {}, -- [1] and [2] for the two possible profession cards
+    accountHeading = nil, -- "Account Data" section heading frame
+    currencies     = {}, -- card frame refs for currencies
+    warbank        = {}, -- card frame refs for warbank gold
+}
 
 -- ==============================================================================
 -- Layout constants
 -- ==============================================================================
 
+-- Minimum player level required to collect Midnight profession and currency data
 local MIDNIGHT_MIN_LEVEL = 78
-local WIN_W     = 480
-local WIN_H     = 560
-local TITLE_H            = 44
-local CONTENT_W = WIN_W - 10 - 30  -- 440
-local CARD_PAD           = 12
-local CARD_GAP           = 8
-local ROW_STEP           = 50
-
-local SOLID_BD = {
-    bgFile   = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = "Interface\\Buttons\\WHITE8X8",
-    edgeSize = 1,
-    insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-}
-
-local STATUS_ICONS = {
-    green  = "|TInterface\\RaidFrame\\ReadyCheck-Ready:13:13|t",
-    yellow = "|TInterface\\RaidFrame\\ReadyCheck-Waiting:13:13|t",
-    red    = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:13:13|t",
-}
-
-local GOLD  = "|cFFFFD700"
-local GRAY  = "|cFF888888"
-local WHITE = "|cFFFFFFFF"
-local R     = "|r"
 
 -- ==============================================================================
 -- Utility function
 -- ==============================================================================
+
 local function FormatGold(value)
-    local gold, calc, gcoin
-
-    gold = value / 100 / 100
-
-    calc = BreakUpLargeNumbers(gold)
-
-    gcoin = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t "
-
+    local gold = value / 100 / 100
+    local calc = BreakUpLargeNumbers(gold)
+    local gcoin = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t "
     return (calc .. gcoin)
 end
 
--- ==============================================================================
--- UI Object Pooling (Memory Leak Fix)
--- ==============================================================================
--- In WoW, UI elements (Frames, Textures, FontStrings) are not garbage collected.
--- We use a standard pooling pattern. Instead of creating new elements on
--- refresh, we check out dormant elements from the pool.
--- On refresh, we send everything back to the pool to be reused.
-
-local UIPool = {
-    frames = {},
-    textures = {},
-    fontStrings = {}
-}
-
-local function AcquireFrame(parent, template)
-    for _, f in ipairs(UIPool.frames) do
-        if not f.inUse then
-            f.inUse = true
-            f:SetParent(parent)
-            f:Show()
-            return f
-        end
-    end
-    -- No dormant frame found; allocate a new one.
-    local f = CreateFrame("Frame", nil, parent, template)
-    f.inUse = true
-    table.insert(UIPool.frames, f)
-    return f
-end
-
-local function AcquireTexture(parent, layer)
-    for _, t in ipairs(UIPool.textures) do
-        if not t.inUse then
-            t.inUse = true
-            t:SetParent(parent)
-            t:SetDrawLayer(layer or "ARTWORK")
-            t:Show()
-            return t
-        end
-    end
-    local t = parent:CreateTexture(nil, layer or "ARTWORK")
-    t.inUse = true
-    table.insert(UIPool.textures, t)
-    return t
-end
-
-local function AcquireFontString(parent, layer, fontObject)
-    for _, fs in ipairs(UIPool.fontStrings) do
-        if not fs.inUse then
-            fs.inUse = true
-            fs:SetParent(parent)
-            fs:SetDrawLayer(layer or "OVERLAY")
-            fs:SetFontObject(fontObject)
-            fs:Show()
-            return fs
-        end
-    end
-    local fs = parent:CreateFontString(nil, layer or "OVERLAY")
-    fs.inUse = true
-    fs:SetFontObject(fontObject)
-    table.insert(UIPool.fontStrings, fs)
-    return fs
-end
-
--- Resets all UI elements so they can be laid out fresh
-local function ReleaseAllUIElements()
-    for _, f in ipairs(UIPool.frames) do
-        f.inUse = false;
-        f:Hide();
-        f:ClearAllPoints()
-    end
-    for _, t in ipairs(UIPool.textures) do
-        t.inUse = false;
-        t:Hide();
-        t:ClearAllPoints();
-        t:SetTexture(nil)
-    end
-    for _, fs in ipairs(UIPool.fontStrings) do
-        fs.inUse = false;
-        fs:Hide();
-        fs:ClearAllPoints();
-        fs:SetText("")
-    end
-end
 -- ==============================================================================
 -- Status & formatting helpers
 -- ==============================================================================
@@ -173,98 +119,11 @@ local function FormatISO(isoStr)
 end
 
 -- ==============================================================================
--- Primitive card builders
+-- Static card builder
 -- ==============================================================================
 
--- Creates a dark styled card of fixed dimensions
-local function MakeCard(parent, h)
-    local f = AcquireFrame(parent, "BackdropTemplate")
-    f:SetSize(CONTENT_W, h)
-    f:SetBackdrop(SOLID_BD)
-    f:SetBackdropColor(0.12, 0.12, 0.15, 0.95)
-    f:SetBackdropBorderColor(0.22, 0.22, 0.28, 1)
-    return f
-end
-
--- Thin horizontal rule inside a card, drawn at yFromTop pixels below card top
-local function CardRule(card, yFromTop)
-    local sep = AcquireTexture(card, "ARTWORK")
-    sep:SetColorTexture(0.28, 0.28, 0.35, 1)
-    sep:SetHeight(1)
-    sep:SetPoint("TOPLEFT",  card, "TOPLEFT",  CARD_PAD, -yFromTop)
-    sep:SetPoint("TOPRIGHT", card, "TOPRIGHT", -CARD_PAD, -yFromTop)
-end
-
--- Gold title header with optional 22×22 icon, returns header bottom y (negative)
-local function CardHeader(card, title, iconTex)
-    local lbl = AcquireFontString(card, "OVERLAY", GameFontNormal)
-    lbl:SetText(GOLD .. title .. R)
-    lbl:SetJustifyH("LEFT")
-    if iconTex then
-        local icon = AcquireTexture(card, "ARTWORK")
-        icon:SetSize(22, 22)
-        icon:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, -9)
-        icon:SetTexture(iconTex)
-
-        lbl:SetPoint("LEFT",  icon, "RIGHT", 6, 0)
-        lbl:SetPoint("RIGHT", card, "RIGHT", -CARD_PAD, 0)
-    else
-        lbl:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, -10)
-        lbl:SetPoint("RIGHT", card, "RIGHT", -CARD_PAD, 0)
-    end
-end
-
-local function CardRow(card, yOff, label, status, detail)
-    local row = AcquireFontString(card, "OVERLAY", GameFontHighlight)
-    row:SetText(STATUS_ICONS[status] .. "  " .. WHITE .. label .. R)
-    row:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, yOff)
-    row:SetPoint("RIGHT",   card, "RIGHT",   -CARD_PAD, 0)
-    row:SetJustifyH("LEFT")
-
-    local det = AcquireFontString(card, "OVERLAY", GameFontHighlightSmall)
-    det:SetText(GRAY .. detail .. R)
-    det:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD + 18, yOff - 18)
-    det:SetPoint("RIGHT",   card, "RIGHT",   -CARD_PAD, 0)
-    det:SetJustifyH("LEFT")
-    det:SetWordWrap(true)
-
-    return yOff - ROW_STEP
-end
-
--- ==============================================================================
--- Stacking layout helper
--- ==============================================================================
-
--- Tracks vertical offset within a scroll child and sizes it automatically.
-local function NewLayout(parent)
-    local self = { parent = parent, y = 0 }
-
-    function self:Place(frame, h, gap)
-        gap = gap or CARD_GAP
-        self.y = self.y - gap
-        frame:SetPoint("TOPLEFT", self.parent, "TOPLEFT", 0, self.y)
-        frame:SetWidth(CONTENT_W)
-        frame:SetHeight(h)
-        self.y = self.y - h
-        self.parent:SetHeight(math.abs(self.y) + CARD_GAP)
-    end
-
-    function self:Heading(text, gap)
-        local f  = AcquireFrame(self.parent)
-        local fs = AcquireFontString(f, "OVERLAY", GameFontNormal)
-        fs:SetText(GOLD .. text .. R)
-        fs:SetAllPoints()
-        fs:SetJustifyH("LEFT")
-        self:Place(f, 20, gap or 14)
-    end
-
-    return self
-end
-
--- ==============================================================================
--- Card builders
--- ==============================================================================
-
+-- Builds the legend card that explains the three collection statuses.
+-- This card's content never changes.
 local function BuildLegend(parent)
     local HEADER_H = 34
     local BODY_H   = 3 * 18 + 12
@@ -273,7 +132,8 @@ local function BuildLegend(parent)
     local card = MakeCard(parent, h)
     CardRule(card, HEADER_H)
 
-    local title = AcquireFontString(card, "OVERLAY", GameFontNormal)
+    local title = card:CreateFontString(nil, "OVERLAY")
+    title:SetFontObject(GameFontNormal)
     title:SetText(WHITE .. "Status Guide" .. R)
     title:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, -10)
 
@@ -284,7 +144,8 @@ local function BuildLegend(parent)
     }
     local y = -(HEADER_H + 8)
     for _, e in ipairs(entries) do
-        local line = AcquireFontString(card, "OVERLAY", GameFontHighlightSmall)
+        local line = card:CreateFontString(nil, "OVERLAY")
+        line:SetFontObject(GameFontHighlightSmall)
         line:SetText(e.icon .. "  " .. GRAY .. e.text .. R)
         line:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, y)
         line:SetPoint("RIGHT",   card, "RIGHT",   -CARD_PAD, 0)
@@ -294,23 +155,111 @@ local function BuildLegend(parent)
     return card, h
 end
 
-local function BuildProfCard(parent, skillLineID, profTexture, profName, charDB)
-    local Cooldowns     = WoWEfficiency:GetModule('Professions.Cooldowns')
-    local Concentration = WoWEfficiency:GetModule('Professions.Concentration')
+-- ==============================================================================
+-- Card slot builders
+-- ==============================================================================
 
+-- These functions create the frame structure for each card with placeholder
+-- content and no initial position. UpdateContent positions and populates them
+-- on every refresh without allocating new frames.
+
+-- Creates a gold section heading frame with no initial position.
+local function CreateHeadingFrame(parent, text)
+    local f  = CreateFrame("Frame", nil, parent)
+    local fs = f:CreateFontString(nil, "OVERLAY")
+    fs:SetFontObject(GameFontNormal)
+    fs:SetText(GOLD .. text .. R)
+    fs:SetAllPoints()
+    fs:SetJustifyH("LEFT")
+    return f
+end
+
+-- Creates a small notice frame with left-aligned gray text and no initial position.
+local function CreateNoticeFrame(parent, text)
+    local f   = CreateFrame("Frame", nil, parent)
+    local lbl = f:CreateFontString(nil, "OVERLAY")
+    lbl:SetFontObject(GameFontHighlightSmall)
+    lbl:SetText(GRAY .. text .. R)
+    lbl:SetAllPoints()
+    lbl:SetJustifyH("LEFT")
+    f:Hide()
+    return f
+end
+
+-- Creates a profession card slot with a placeholder icon and empty row content.
+-- The slot is hidden until UpdateContent assigns a profession and shows it.
+-- Returns a table of references to every mutable element in the card.
+local function BuildProfCardSlot(parent)
     local HEADER_H = 40
     local h        = HEADER_H + 8 + ROW_STEP + 6 + ROW_STEP + 10
 
     local card = MakeCard(parent, h)
-    CardHeader(card, profName, profTexture)
+    -- Placeholder icon; UpdateContent replaces texture and label text when a
+    -- profession is assigned to this slot for the first time
+    local headerIcon, headerLabel = CardHeader(card, " ", "Interface\\Icons\\INV_Misc_QuestionMark")
     CardRule(card, HEADER_H)
 
-    -- Sub-row 1: Basic Stats (auto-collected on login)
-    local basicStatus = GetStatus(charDB.lastUpdated["professions"])
-    local basicDetail
+    local y                           = -(HEADER_H + 8)
+    local nextY, basicRow, basicDet   = CardRow(card, y, "Basic Stats", "red", "")
+    local _, windowRow, windowDet     = CardRow(card, nextY - 6, "Window Data", "red", "")
+
+    card:Hide()
+    return {
+        card        = card,
+        h           = h,
+        skillLineID = nil, -- profession currently assigned to this slot
+        headerIcon  = headerIcon,
+        headerLabel = headerLabel,
+        basicRow    = basicRow,
+        basicDet    = basicDet,
+        windowRow   = windowRow,
+        windowDet   = windowDet,
+    }
+end
+
+-- Creates the Warbank Gold card with placeholder row content.
+local function BuildWarbankCardSlot(parent)
+    local HEADER_H = 36
+    local h        = HEADER_H + 8 + ROW_STEP + 10
+
+    local card = MakeCard(parent, h)
+    CardHeader(card, "Warbank Gold")
+    CardRule(card, HEADER_H)
+
+    local _, row, det = CardRow(card, -(HEADER_H + 8), "Balance", "red", "")
+
+    card:Hide()
+    return { card = card, h = h, row = row, det = det }
+end
+
+-- Creates the Currencies card with placeholder row content.
+local function BuildCurrenciesCardSlot(parent)
+    local HEADER_H = 36
+    local h        = HEADER_H + 8 + ROW_STEP + 10
+
+    local card = MakeCard(parent, h)
+    CardHeader(card, "Currencies")
+    CardRule(card, HEADER_H)
+
+    local _, row, det = CardRow(card, -(HEADER_H + 8), "Tracked Currencies", "red", "")
+
+    card:Hide()
+    return { card = card, h = h, row = row, det = det }
+end
+
+-- ==============================================================================
+-- Row content calculations
+-- ==============================================================================
+
+-- These functions compute the status and detail text for each card row from
+-- the current DB state, independently of the frames that display them.
+
+-- Returns (status, detailText) for the "Basic Stats" row of a profession card.
+local function CalcBasicStatsRow(skillLineID, charDB)
+    local status  = GetStatus(charDB.lastUpdated["professions"])
     local expData = (charDB.professions[skillLineID] or {}).Midnight
 
-    if expData and expData.level and expData.level > 0 then
+    if expData and expData.maxLevel and expData.maxLevel > 0 then
         local parts = {}
         table.insert(parts, WHITE .. expData.level .. "/" .. expData.maxLevel .. " skill" .. R)
         if expData.knowledgeLevel and expData.knowledgeLevel > 0 then
@@ -321,20 +270,18 @@ local function BuildProfCard(parent, skillLineID, profTexture, profName, charDB)
         end
         local ts = FormatISO(charDB.lastUpdatedISO["professions"])
         if ts then table.insert(parts, "updated " .. ts) end
-        basicDetail = table.concat(parts, GRAY .. " · " .. R)
+        return status, table.concat(parts, GRAY .. " · " .. R)
     else
-        basicDetail = "Auto-collected on login. Relog if missing."
+        return status, "Auto-collected on login. Relog if missing."
     end
+end
 
-    local y = -(HEADER_H + 8)
-    y = CardRow(card, y, "Basic Stats", basicStatus, basicDetail)
-    y = y - 6
-
-    -- Sub-row 2: Window Data (requires opening the profession window)
-    local hasCooldowns     = Cooldowns.Constants[skillLineID] ~= nil
-    local hasConcentration = Concentration.Constants[skillLineID] ~= nil
-    local windowStatus = "green"
-    local bestTs, bestISO = 0, nil
+-- Returns (status, detailText) for the "Window Data" row of a profession card.
+local function CalcWindowDataRow(skillLineID, profName, charDB)
+    local hasCooldowns     = CooldownsModule.Constants[skillLineID] ~= nil
+    local hasConcentration = ConcentrationModule.Constants[skillLineID] ~= nil
+    local windowStatus     = "green"
+    local bestTs, bestISO  = 0, nil
 
     if hasCooldowns then
         local ts = charDB.lastUpdated["cooldown-" .. skillLineID]
@@ -347,11 +294,12 @@ local function BuildProfCard(parent, skillLineID, profTexture, profName, charDB)
         if (ts or 0) > bestTs then bestTs = ts or 0; bestISO = charDB.lastUpdatedISO["concentration-" .. skillLineID] end
     end
 
-    local windowDetail
+    local expData = (charDB.professions[skillLineID] or {}).Midnight
+    local detail
     if windowStatus == "red" then
         local what = (hasCooldowns and hasConcentration) and "cooldowns and concentration"
                   or (hasCooldowns and "cooldowns" or "concentration")
-        windowDetail = "Open your " .. profName .. " window to collect " .. what .. "."
+        detail = "Open your " .. profName .. " window to collect " .. what .. "."
     else
         local parts = {}
         if expData then
@@ -366,100 +314,106 @@ local function BuildProfCard(parent, skillLineID, profTexture, profName, charDB)
             end
         end
         if bestISO then table.insert(parts, "updated " .. FormatISO(bestISO)) end
-        windowDetail = #parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "Data collected."
-    end
-
-    CardRow(card, y, "Window Data", windowStatus, windowDetail)
-
-    return card, h
-end
-
-local function BuildWarbankCard(parent, globalDB)
-    local HEADER_H = 36
-    local h        = HEADER_H + 8 + ROW_STEP + 10
-
-    local card = MakeCard(parent, h)
-    CardHeader(card, "Warbank Gold")
-    CardRule(card, HEADER_H)
-
-    local status = GetStatus(globalDB.lastUpdated["warbankGold"])
-    local detail
-    if status == "red" then
-        detail = "Open your Warbank to collect gold data."
-    else
-        local parts = {}
-        local goldStr = globalDB.warbankGold and FormatGold(globalDB.warbankGold) or nil
-        if goldStr then table.insert(parts, goldStr) end
-        
-        local ts = FormatISO(globalDB.lastUpdatedISO["warbankGold"])
-        if ts then table.insert(parts, "updated " .. ts) end
         detail = #parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "Data collected."
     end
 
-    CardRow(card, -(HEADER_H + 8), "Balance", status, detail)
-    return card, h
+    return windowStatus, detail
 end
 
-local function BuildCurrenciesCard(parent, charDB)
-    local HEADER_H = 36
-    local h        = HEADER_H + 8 + ROW_STEP + 10
-
-    local card = MakeCard(parent, h)
-    CardHeader(card, "Currencies")
-    CardRule(card, HEADER_H)
-
-    local status = GetStatus(charDB.lastUpdated["currencies"])
-    local detail
+-- Returns (status, detailText) for the Warbank Gold card.
+local function CalcWarbankRow(globalDB)
+    local status = GetStatus(globalDB.lastUpdated["warbankGold"])
     if status == "red" then
-        detail = "Automatically collected on login. Relog if missing."
-    else
-        local parts = {}
-        for currencyID, data in pairs(charDB.currencies or {}) do
-            local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
-            local name = info and info.name or ("Currency " .. currencyID)
-            table.insert(parts, WHITE .. name .. ": " .. BreakUpLargeNumbers(data.amount or 0) .. R)
-        end
-        local ts = FormatISO(charDB.lastUpdatedISO["currencies"])
-        if ts then table.insert(parts, "updated " .. ts) end
-        detail = #parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "No currencies collected."
+        return status, "Open your Warbank to collect gold data."
     end
+    local parts = {}
+    local goldStr = globalDB.warbankGold and FormatGold(globalDB.warbankGold) or nil
+    if goldStr then table.insert(parts, goldStr) end
+    local ts = FormatISO(globalDB.lastUpdatedISO["warbankGold"])
+    if ts then table.insert(parts, "updated " .. ts) end
+    return status, (#parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "Data collected.")
+end
 
-    CardRow(card, -(HEADER_H + 8), "Tracked Currencies", status, detail)
-    return card, h
+-- Returns (status, detailText) for the Currencies card.
+local function CalcCurrenciesRow(charDB)
+    local status = GetStatus(charDB.lastUpdated["currencies"])
+    if status == "red" then
+        return status, "Automatically collected on login. Relog if missing."
+    end
+    local parts = {}
+    for currencyID, data in pairs(charDB.currencies or {}) do
+        local info = C_CurrencyInfo_GetCurrencyInfo(currencyID)
+        local name = info and info.name or ("Currency " .. currencyID)
+        table.insert(parts, WHITE .. name .. ": " .. BreakUpLargeNumbers(data.amount or 0) .. R)
+    end
+    local ts = FormatISO(charDB.lastUpdatedISO["currencies"])
+    if ts then table.insert(parts, "updated " .. ts) end
+    return status, (#parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "No currencies collected.")
 end
 
 -- ==============================================================================
 -- Content population
 -- ==============================================================================
 
-function Module:PopulateContent()
-    local Professions = WoWEfficiency:GetModule('Professions')
-    local charDB      = db:GetDB().char
-    local globalDB    = db:GetDB().global
-    local layout      = NewLayout(scrollChild)
-
-    -- Status guide legend
+-- Creates all content frames once when the window is first opened and stores
+-- their references in contentRefs. Frames have no initial position; UpdateContent
+-- positions and populates them on every refresh.
+function Module:CreateContent()
+    -- Legend is fully static and always visible; no FontString refs needed
     local legendCard, legendH = BuildLegend(scrollChild)
-    layout:Place(legendCard, legendH, 10)
+    contentRefs.legendCard    = legendCard
+    contentRefs.legendH       = legendH
 
-    -- ---- Professions --------------------------------------------------------
-    layout:Heading("Professions")
+    -- Profession section: heading, level-gate notice, no-profession notice, and
+    -- two card slots covering the maximum of two professions per character.
+    contentRefs.profHeading  = CreateHeadingFrame(scrollChild, "Professions")
+    contentRefs.levelNotice  = CreateNoticeFrame(scrollChild,
+        "Profession and currency tracking requires level " .. MIDNIGHT_MIN_LEVEL .. " (Midnight content).")
+    contentRefs.noProfNotice = CreateNoticeFrame(scrollChild,
+        "No tracked professions found for this character.")
+    contentRefs.profSlots[1] = BuildProfCardSlot(scrollChild)
+    contentRefs.profSlots[2] = BuildProfCardSlot(scrollChild)
 
-    local playerLevel = UnitLevel("player")
+    -- Account data section: heading, currencies (level-gated), and warbank (always shown)
+    contentRefs.accountHeading = CreateHeadingFrame(scrollChild, "Account Data")
+    contentRefs.currencies     = BuildCurrenciesCardSlot(scrollChild)
+    contentRefs.warbank        = BuildWarbankCardSlot(scrollChild)
+end
+
+-- Repositions all content frames and updates their text from the current DB state.
+-- Called on every refresh; no frames are created during this call.
+function Module:UpdateContent()
+    local Professions = WoWEfficiency:GetModule('Professions')
+    local charDB      = db:GetCharDB()
+    local globalDB    = db:GetDB().global
+    local playerLevel = _UnitLevel("player")
+
+    -- Re-layout from scratch on each refresh so the scroll child height stays
+    -- accurate regardless of which cards are shown or hidden.
+    local layout = NewLayout(scrollChild)
+
+    -- Legend is always first and always shown
+    layout:Place(contentRefs.legendCard, contentRefs.legendH, 10)
+
+    -- Profession section heading is always shown
+    layout:Place(contentRefs.profHeading, 20, 14)
+
     if playerLevel < MIDNIGHT_MIN_LEVEL then
-        local notice = AcquireFrame(scrollChild)
-        local lbl = AcquireFontString(notice, "OVERLAY", GameFontHighlightSmall)
-        lbl:SetText(GRAY .. "Profession and currency tracking requires level "
-            .. MIDNIGHT_MIN_LEVEL .. " (Midnight content)." .. R)
-        lbl:SetAllPoints()
-        lbl:SetJustifyH("LEFT")
-        layout:Place(notice, 20, 6)
+        -- Below minimum level: show a single notice and hide all profession cards
+        contentRefs.levelNotice:Show()
+        layout:Place(contentRefs.levelNotice, 20, 6)
+        contentRefs.noProfNotice:Hide()
+        contentRefs.profSlots[1].card:Hide()
+        contentRefs.profSlots[2].card:Hide()
     else
-        local prof1, prof2 = GetProfessions()
+        contentRefs.levelNotice:Hide()
+
+        -- Collect and sort the character's currently active tracked professions
+        local prof1, prof2 = _GetProfessions()
         local profs = {}
         for _, idx in pairs({ prof1, prof2 }) do
             if idx then
-                local profName, profTex, _, _, _, _, skillLineID = GetProfessionInfo(idx)
+                local profName, profTex, _, _, _, _, skillLineID = _GetProfessionInfo(idx)
                 if skillLineID and Professions.Constants[skillLineID] then
                     table.insert(profs, { id = skillLineID, name = profName, texture = profTex })
                 end
@@ -468,32 +422,58 @@ function Module:PopulateContent()
         table.sort(profs, function(a, b) return a.name < b.name end)
 
         if #profs == 0 then
-            local notice = AcquireFrame(scrollChild)
-            local lbl = AcquireFontString(notice, "OVERLAY", GameFontHighlightSmall)
-            lbl:SetText(GRAY .. "No tracked professions found for this character." .. R)
-            lbl:SetAllPoints()
-            lbl:SetJustifyH("LEFT")
-            layout:Place(notice, 20, 6)
+            contentRefs.noProfNotice:Show()
+            layout:Place(contentRefs.noProfNotice, 20, 6)
         else
-            for _, prof in ipairs(profs) do
-                local card, h = BuildProfCard(scrollChild, prof.id, prof.texture, prof.name, charDB)
-                layout:Place(card, h)
+            contentRefs.noProfNotice:Hide()
+        end
+
+        -- Assign professions to slots in sorted order; hide any unused slots.
+        -- If the profession in a slot has changed (e.g. the player learned or
+        -- dropped a profession mid-session), the header is updated before the
+        -- row content so all visible text is consistent.
+        for i = 1, 2 do
+            local prof = profs[i]
+            local slot = contentRefs.profSlots[i]
+            if prof then
+                if slot.skillLineID ~= prof.id then
+                    slot.skillLineID = prof.id
+                    slot.headerIcon:SetTexture(prof.texture)
+                    slot.headerLabel:SetText(GOLD .. prof.name .. R)
+                end
+                local basicStatus, basicDetail = CalcBasicStatsRow(prof.id, charDB)
+                slot.basicRow:SetText(STATUS_ICONS[basicStatus] .. "  " .. WHITE .. "Basic Stats" .. R)
+                slot.basicDet:SetText(GRAY .. basicDetail .. R)
+                local windowStatus, windowDetail = CalcWindowDataRow(prof.id, prof.name, charDB)
+                slot.windowRow:SetText(STATUS_ICONS[windowStatus] .. "  " .. WHITE .. "Window Data" .. R)
+                slot.windowDet:SetText(GRAY .. windowDetail .. R)
+                slot.card:Show()
+                layout:Place(slot.card, slot.h)
+            else
+                slot.card:Hide()
             end
         end
 
-        -- Currencies (only relevant at Midnight level)
-        layout:Heading("Account Data")
-        local currCard, currH = BuildCurrenciesCard(scrollChild, charDB)
-        layout:Place(currCard, currH)
+        -- Currencies are only tracked at Midnight level
+        layout:Place(contentRefs.accountHeading, 20, 14)
+        local currStatus, currDetail = CalcCurrenciesRow(charDB)
+        contentRefs.currencies.row:SetText(STATUS_ICONS[currStatus] .. "  " .. WHITE .. "Tracked Currencies" .. R)
+        contentRefs.currencies.det:SetText(GRAY .. currDetail .. R)
+        contentRefs.currencies.card:Show()
+        layout:Place(contentRefs.currencies.card, contentRefs.currencies.h)
     end
 
-    -- ---- Account Data -------------------------------------------------------
-    -- Warbank is account-wide, always shown regardless of level
+    -- Warbank is account-wide and always shown.
+    -- When the player is below Midnight level, currencies are skipped above, so
+    -- the account data heading needs to appear here immediately before the warbank card.
     if playerLevel < MIDNIGHT_MIN_LEVEL then
-        layout:Heading("Account Data")
+        layout:Place(contentRefs.accountHeading, 20, 14)
     end
-    local bankCard, bankH = BuildWarbankCard(scrollChild, globalDB)
-    layout:Place(bankCard, bankH)
+    local bankStatus, bankDetail = CalcWarbankRow(globalDB)
+    contentRefs.warbank.row:SetText(STATUS_ICONS[bankStatus] .. "  " .. WHITE .. "Balance" .. R)
+    contentRefs.warbank.det:SetText(GRAY .. bankDetail .. R)
+    contentRefs.warbank.card:Show()
+    layout:Place(contentRefs.warbank.card, contentRefs.warbank.h)
 end
 
 -- ==============================================================================
@@ -532,7 +512,7 @@ function Module:CreateWindow()
     titleRule:SetPoint("TOPLEFT",  mainFrame, "TOPLEFT",  1,  -TITLE_H)
     titleRule:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", -1, -TITLE_H)
 
-    -- Title text — created on titleBar so it renders above titleBar's own backdrop
+    -- Title text
     local titleText = titleBar:CreateFontString(nil, "OVERLAY")
     titleText:SetFontObject(GameFontNormalLarge)
     titleText:SetText(GOLD .. "WoW Efficiency" .. R .. "  —  Data Status")
@@ -571,42 +551,13 @@ function Module:CreateWindow()
         local new = math.min(math.max(scrollBar:GetValue() - delta * 30, min), max)
         scrollBar:SetValue(new)
     end)
-    -- Create scrollChild just ONCE to serve as the master container
     scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(CONTENT_W, 10) -- Height scales automatically during PopulateContent
+    scrollChild:SetSize(CONTENT_W, 10)
     scrollFrame:SetScrollChild(scrollChild)
-end
 
--- ==============================================================================
--- Content rebuild
--- ==============================================================================
-
-function Module:RebuildContent()
-    -- 1. Capture the current scroll position before we destroy anything
-    local currentScroll = scrollBar and scrollBar:GetValue() or 0
-
-    -- 2. Free all previously created layouts back into the pool
-    ReleaseAllUIElements()
-
-    -- 3. Re-generate the cards from the pool
-    self:PopulateContent()
-
-    -- 4. Restore the scroll position
-    if scrollFrame and scrollBar then
-        -- Force recalculate of the height of the newly populated content
-        scrollFrame:UpdateScrollChildRect() 
-        
-        -- Get the new maximum possible scroll depth
-        local maxScroll = math.max(0, scrollFrame:GetVerticalScrollRange() or 0)
-        
-        -- Ensure we don't try to scroll further down than the new content allows
-        currentScroll = math.min(currentScroll, maxScroll)
-        
-        -- Apply the restored position
-        scrollBar:SetMinMaxValues(0, maxScroll)
-        scrollBar:SetValue(currentScroll)
-        scrollFrame:SetVerticalScroll(currentScroll)
-    end
+    -- Create all content frames once. UpdateContent will position and populate
+    -- them on every refresh without allocating new frames.
+    self:CreateContent()
 end
 
 -- ==============================================================================
@@ -614,9 +565,7 @@ end
 -- ==============================================================================
 
 function Module:OnInitialize()
-    db = WoWEfficiency:GetModule('DB')
-    LibDBIcon = LibStub("LibDBIcon-1.0")
-
+    local LibDBIcon = LibStub("LibDBIcon-1.0")
     local LDB = LibStub("LibDataBroker-1.1"):NewDataObject("WowEfficiency", {
         type = "launcher",
         text = "WoW Efficiency",
@@ -634,7 +583,6 @@ function Module:OnInitialize()
 end
 
 function Module:OnEnable()
-    sessionStartTime = GetServerTime()
     self:RegisterEvent('PLAYER_ENTERING_WORLD', 'OnPlayerEnteringWorld')
     -- Register bucket events for all data updates
     self:RegisterBucketEvent({
@@ -646,20 +594,22 @@ function Module:OnEnable()
 end
 
 function Module:OnPlayerEnteringWorld()
-    sessionStartTime = GetServerTime()
+    sessionStartTime = _GetServerTime()
     self:RefreshWindow()
 
     if not db:GetDB().profile.hasShownWelcome then
         db:GetDB().profile.hasShownWelcome = true
-        C_Timer.After(1, function() Module:ShowWindow() end)
+        -- Delay slightly so UI has finished initial rendering
+        C_Timer_After(1, function() Module:ShowWindow() end)
     end
 end
 
 function Module:RefreshWindow()
-    -- Only rebuild if the window actually exists and is currently visible to the user
+    -- Only update if the window actually exists and is currently visible to the user
     if not mainFrame or not mainFrame:IsShown() then return end
-    self:RebuildContent()
+    self:UpdateContent()
 end
+
 -- ==============================================================================
 -- Window management
 -- ==============================================================================
@@ -676,10 +626,16 @@ end
 
 function Module:ShowWindow()
     if not mainFrame then self:CreateWindow() end
-    self:RebuildContent()
+    self:UpdateContent()
     mainFrame:Show()
 end
 
 function Module:HideWindow()
     if mainFrame then mainFrame:Hide() end
 end
+
+-- ==============================================================================
+-- TODO
+-- ==============================================================================
+
+-- Last updated (show time since? at the very least show user time instead of server time / iso)

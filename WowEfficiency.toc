@@ -26,6 +26,7 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 Init.lua
 Types.lua
 Utils\Table.lua
+Utils\Frame.lua
 Modules\DB.lua
 Modules\Debug.lua
 

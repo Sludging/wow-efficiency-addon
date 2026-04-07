@@ -113,9 +113,22 @@ local function WorstStatus(a, b)
     return "green"
 end
 
-local function FormatISO(isoStr)
-    if not isoStr then return nil end
-    return isoStr:gsub("T", " "):gsub("Z", "")
+local function FormatRelative(ts)
+    if not ts or ts == 0 then return nil end
+    local elapsed = _GetServerTime() - ts
+    if elapsed < 120 then
+        return "just now"
+    elseif elapsed < 3600 then
+        return math.floor(elapsed / 60) .. " min ago"
+    elseif elapsed < 86400 then
+        local h = math.floor(elapsed / 3600)
+        return h .. (h == 1 and " hour ago" or " hours ago")
+    elseif elapsed < 604800 then
+        local d = math.floor(elapsed / 86400)
+        return d .. (d == 1 and " day ago" or " days ago")
+    else
+        return date("%Y-%m-%d", ts)
+    end
 end
 
 -- ==============================================================================
@@ -235,7 +248,7 @@ end
 -- Creates the Currencies card with placeholder row content.
 local function BuildCurrenciesCardSlot(parent)
     local HEADER_H = 36
-    local h        = HEADER_H + 8 + ROW_STEP + 10
+    local h        = HEADER_H + 8 + ROW_STEP + 18 + 10  -- +18 for the two-line hint in the red state
 
     local card = MakeCard(parent, h)
     CardHeader(card, "Currencies")
@@ -268,7 +281,7 @@ local function CalcBasicStatsRow(skillLineID, charDB)
         if expData.knowledgeUnspent and expData.knowledgeUnspent > 0 then
             table.insert(parts, WHITE .. expData.knowledgeUnspent .. " unspent KP" .. R)
         end
-        local ts = FormatISO(charDB.lastUpdatedISO["professions"])
+        local ts = FormatRelative(charDB.lastUpdated["professions"])
         if ts then table.insert(parts, "updated " .. ts) end
         return status, table.concat(parts, GRAY .. " · " .. R)
     else
@@ -280,18 +293,18 @@ end
 local function CalcWindowDataRow(skillLineID, profName, charDB)
     local hasCooldowns     = CooldownsModule.Constants[skillLineID] ~= nil
     local hasConcentration = ConcentrationModule.Constants[skillLineID] ~= nil
-    local windowStatus     = "green"
-    local bestTs, bestISO  = 0, nil
+    local windowStatus = "green"
+    local bestTs       = 0
 
     if hasCooldowns then
         local ts = charDB.lastUpdated["cooldown-" .. skillLineID]
         windowStatus = WorstStatus(windowStatus, GetStatus(ts))
-        if (ts or 0) > bestTs then bestTs = ts or 0; bestISO = charDB.lastUpdatedISO["cooldown-" .. skillLineID] end
+        if (ts or 0) > bestTs then bestTs = ts or 0 end
     end
     if hasConcentration then
         local ts = charDB.lastUpdated["concentration-" .. skillLineID]
         windowStatus = WorstStatus(windowStatus, GetStatus(ts))
-        if (ts or 0) > bestTs then bestTs = ts or 0; bestISO = charDB.lastUpdatedISO["concentration-" .. skillLineID] end
+        if (ts or 0) > bestTs then bestTs = ts or 0 end
     end
 
     local expData = (charDB.professions[skillLineID] or {}).Midnight
@@ -313,7 +326,8 @@ local function CalcWindowDataRow(skillLineID, profName, charDB)
                 if n > 0 then table.insert(parts, WHITE .. n .. R .. " cooldown(s) tracked") end
             end
         end
-        if bestISO then table.insert(parts, "updated " .. FormatISO(bestISO)) end
+        local ts = FormatRelative(bestTs)
+        if ts then table.insert(parts, "updated " .. ts) end
         detail = #parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "Data collected."
     end
 
@@ -329,7 +343,7 @@ local function CalcWarbankRow(globalDB)
     local parts = {}
     local goldStr = globalDB.warbankGold and FormatGold(globalDB.warbankGold) or nil
     if goldStr then table.insert(parts, goldStr) end
-    local ts = FormatISO(globalDB.lastUpdatedISO["warbankGold"])
+    local ts = FormatRelative(globalDB.lastUpdated["warbankGold"])
     if ts then table.insert(parts, "updated " .. ts) end
     return status, (#parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "Data collected.")
 end
@@ -337,8 +351,9 @@ end
 -- Returns (status, detailText) for the Currencies card.
 local function CalcCurrenciesRow(charDB)
     local status = GetStatus(charDB.lastUpdated["currencies"])
+    local TIP = "\n\nTip: open the Currency tab and click Transfer on any tracked currency to populate all your characters at once."
     if status == "red" then
-        return status, "Automatically collected on login. Relog if missing."
+        return status, "Automatically collected on login. Relog if missing." .. TIP
     end
     local parts = {}
     for currencyID, data in pairs(charDB.currencies or {}) do
@@ -346,9 +361,10 @@ local function CalcCurrenciesRow(charDB)
         local name = info and info.name or ("Currency " .. currencyID)
         table.insert(parts, WHITE .. name .. ": " .. BreakUpLargeNumbers(data.amount or 0) .. R)
     end
-    local ts = FormatISO(charDB.lastUpdatedISO["currencies"])
+    local ts = FormatRelative(charDB.lastUpdated["currencies"])
     if ts then table.insert(parts, "updated " .. ts) end
-    return status, (#parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "No currencies collected.")
+    local detail = #parts > 0 and table.concat(parts, GRAY .. " · " .. R) or "No currencies collected."
+    return status, detail .. TIP
 end
 
 -- ==============================================================================

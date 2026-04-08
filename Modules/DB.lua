@@ -33,6 +33,8 @@ local dbDefaults = {
     },
     profile = { -- Settings shared across characters using this profile
         debugMode = false,
+        minimap = {}, -- LibDBIcon saved state (hide, minimapPos, radius)
+        hasShownWelcome = false, -- Whether the status panel has been auto-shown once (account-wide)
     },
     global = {
         weeklyResetTime = 0, -- Updated once per week.

@@ -41,6 +41,13 @@ Data collection uses per-expansion minimum levels: TWW requires level 70+, Midni
 
 All Constants tables use a profession-first, expansion-second keying pattern: `Constants[skillLineID].TWW`, `Constants[skillLineID].Midnight`. Each expansion sub-key contains `minLevel`, `skillLineVariantID`, `catchUpCurrencyID`, and (for crafting professions) `concentrationCurrencyID`. The DB stores profession data the same way: `professions[skillLineID].TWW = { level, maxLevel, ... }`. Sub-module constants (Cooldowns, Concentration) follow the same pattern. The cooldowns constants list expansion-specific `recipeID`s that have daily/charge-based cooldowns.
 
+### UI Module
+
+`Modules/UI.lua` is the status panel that opens from the minimap button. Two key patterns apply here:
+
+- **`Utils/Frame.lua`** contains all low-level frame primitives (`MakeCard`, `CardRule`, `CardHeader`, `CardRow`, `NewLayout`) and layout constants (`WIN_W`, `WIN_H`, `CONTENT_W`, etc.). It exports everything via `WowEfficiency.Utils.Frame`. UI.lua upvalues from there — do not duplicate these constants or primitives in UI.lua.
+- **Create-once, update-in-place**: `CreateWindow` calls `CreateContent` once to build all card frames and stores references to every dynamic element in the module-local `contentRefs` table. `UpdateContent` then calls `SetText`/`SetTexture` on those references and repositions frames via `NewLayout` on every refresh — it never calls `CreateFrame`. This avoids WoW's inability to destroy frames. Do not introduce any pattern that creates frames on refresh.
+
 ## TOC Load Order
 
 The TOC file controls what WoW loads and in what order. The ordering is intentional:

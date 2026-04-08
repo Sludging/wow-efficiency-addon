@@ -19,11 +19,14 @@ Libs\Ace3\AceEvent-3.0\AceEvent-3.0.xml
 Libs\Ace3\AceDB-3.0\AceDB-3.0.xml
 Libs\Ace3\AceConsole-3.0\AceConsole-3.0.xml
 Libs\Ace3\AceBucket-3.0\AceBucket-3.0.xml
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 # Our addon files
 Init.lua
 Types.lua
 Utils\Table.lua
+Utils\Frame.lua
 Modules\DB.lua
 Modules\Debug.lua
 
@@ -66,5 +69,7 @@ Modules\Professions\Concentration.lua
 Modules\Bank.lua
 # Currencies
 Modules\Currencies.lua
+# UI
+Modules\UI.lua
 # Core
 Core.lua

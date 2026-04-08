@@ -47,6 +47,7 @@ function Module:OnEnable()
         {
             'SKILL_LINES_CHANGED',
             'TRADE_SKILL_LIST_UPDATE',
+            'CURRENCY_DISPLAY_UPDATE',
         },
         3,
         "UpdateProfessions"

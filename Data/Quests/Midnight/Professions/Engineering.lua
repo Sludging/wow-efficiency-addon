@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Engineering = {
     Artisan = { 93692 },
     Treasure = { 93534, 93535 },
     Treatise = { 95138 },
-    Uniques = { 89133, 89134, 89135, 89136, 89137, 89138, 89139, 89140, 93796 },
+    Uniques = { 89133, 89134, 89135, 89136, 89137, 89138, 89139, 89140, 93796, 96513 },
 }

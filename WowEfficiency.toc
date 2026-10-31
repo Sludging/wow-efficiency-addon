@@ -1,4 +1,4 @@
-## Interface: 120005, 120001
+## Interface: 120105
 ## Title: Wow Efficiency
 ## Notes: A helper addon for the WoWEfficiency website.
 ## Author: Sludger
@@ -57,6 +57,7 @@ Data\Quests\Midnight\Professions\Leatherworking.lua
 Data\Quests\Midnight\Professions\Mining.lua
 Data\Quests\Midnight\Professions\Skinning.lua
 Data\Quests\Midnight\Professions\Tailoring.lua
+Data\Quests\Midnight\Events\AqirInvasion.lua
 
 # Quests
 Modules\Quests.lua

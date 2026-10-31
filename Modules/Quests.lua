@@ -104,7 +104,8 @@ end
 -- Structure: GroupName = { SubGroupName = { CategoryName = { questID1, questID2, ... } } }
 local StructuredQuests = {
     Professions = addonNamespace.ProfessionQuests or {},
-    Delves = addonNamespace.DelveQuests or {}
+    Delves = addonNamespace.DelveQuests or {},
+    Events = addonNamespace.EventQuests or {}
 }
 
 -- Flatten the quest structure and create constants

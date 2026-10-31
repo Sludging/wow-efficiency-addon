@@ -24,10 +24,12 @@ Each feature area is its own Ace module to enforce clear boundaries:
 
 ### Data Files vs Module Code
 
-Quest IDs live in `Data/Quests/` as pure data files separate from logic, organized into subdirectories: `Shared/` (cross-expansion quests like Darkmoon), `TWW/Professions/`, `TWW/Delves/`, and `Midnight/Professions/`. This is intentional:
-- Data files populate the shared addon namespace at load time (e.g., `WowEfficiency.ProfessionQuests.TWW.Alchemy = { ... }`, `WowEfficiency.ProfessionQuests.Shared.Darkmoon = { ... }`)
-- The Quests module reads from the namespace and flattens everything via `Table:FlattenQuestIDs()`
-- This means adding new quests or a new expansion never requires touching module logic - just data files and the TOC
+Quest IDs live in `Data/Quests/` as pure data files separate from logic. Directories include `Shared/`, `TWW/Professions/`, `TWW/Delves/`, `Midnight/Professions/`, and `Midnight/Events/`.
+- Data files populate the shared addon namespaces: `ProfessionQuests`, `DelveQuests`, and `EventQuests`.
+- The Quests module lists supported groups in `StructuredQuests` and flattens their IDs via `Table:FlattenQuestIDs()`.
+- Adding IDs within known groups requires only data file changes. New files also need TOC entries; new groups need `StructuredQuests` entries.
+
+The addon collects Aqir Invasion weekly completion through `EventQuests.Midnight.AqirInvasion.Weekly`. The website has no Aqir Invasion task.
 
 ### Weekly Reset Handling
 
@@ -58,6 +60,10 @@ The TOC file controls what WoW loads and in what order. The ordering is intentio
 5. `Core.lua` last because it wires up slash commands that reference all modules
 
 **Any new `.lua` file must be added to the TOC or WoW silently ignores it.** TOC paths use backslashes.
+
+## Patch Updates
+
+For major content patches, season changes, or relevant hotfixes, read `../wow-efficiency/.claude/skills/static-data-updates/SKILL.md` from the addon repository root.
 
 ## Slash Commands
 

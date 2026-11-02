@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Alchemy = {
     Artisan = { 93690 },
     Treasure = { 93528, 93529 },
     Treatise = { 95127 },
-    Uniques = { 89111, 89112, 89113, 89114, 89115, 89116, 89117, 89118, 93794 },
+    Uniques = { 89111, 89112, 89113, 89114, 89115, 89116, 89117, 89118, 93794, 96459 },
 }

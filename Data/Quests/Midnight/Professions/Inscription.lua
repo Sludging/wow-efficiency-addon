@@ -10,5 +10,5 @@ WowEfficiency.ProfessionQuests.Midnight.Inscription = {
     Artisan = { 93693 },
     Treasure = { 93536, 93537 },
     Treatise = { 95131 },
-    Uniques = { 89067, 89068, 89069, 89070, 89071, 89072, 89073, 89074, 93412 },
+    Uniques = { 89067, 89068, 89069, 89070, 89071, 89072, 89073, 89074, 93412, 96515 },
 }

@@ -2,7 +2,7 @@
 
 A World of Warcraft addon that collects in-game data not available from the public Battle.net API. Data is stored in WoW's SavedVariables (`WowEfficiencyDB`) and uploaded by users to the companion website (wowefficiency.com).
 
-No test framework or linter - changes are verified by loading in-game. Release is manual: PR to `main`, run `Scripts/release.sh` (BigWigs packager), upload zip to CurseForge.
+No test framework or linter - changes are verified by loading in-game. Before release setup, tag creation, publishing, or local packaging, read [README.md → Releases](README.md#releases).
 
 ## Architecture Decisions
 

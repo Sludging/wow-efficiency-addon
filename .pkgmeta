@@ -35,10 +35,17 @@ externals:
     tag: latest
 
   Libs/LibDBIcon-1.0:
-    url: https://repos.curseforge.com/wow/libdbicon-1-0/trunk
+    url: https://repos.curseforge.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0
     tag: latest
 
 ignore:
+  - .claude
+  - .reference-repos
+  - .github
+  - .vscode
+  - CLAUDE.md
+  - .env
+  - .env.*
   - README.md
   - Context.md
   - Scripts

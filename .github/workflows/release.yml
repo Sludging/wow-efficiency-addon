@@ -1,0 +1,54 @@
+name: Package and release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CurseForge secret
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+        shell: bash
+        run: |
+          if [[ -z "$CF_API_KEY" ]]; then
+            echo "::error::Missing CF_API_KEY. Add the CurseForge API token as a repository Actions secret before releasing."
+            exit 1
+          fi
+
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release tags must use vMAJOR.MINOR.PATCH, for example v2.2.0."
+            exit 1
+          fi
+          if [[ "$(git cat-file -t "$GITHUB_REF")" != "tag" ]]; then
+            echo "::error::Release tags must be annotated. Create the tag with git tag -a."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${GITHUB_REF}^{commit}" refs/remotes/origin/main; then
+            echo "::error::The release tag must point to a commit reachable from origin/main. Merge the release changes first."
+            exit 1
+          fi
+
+      - name: Package and publish
+        uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2.6.1 (v2)
+        with:
+          args: -p 1268061 -w 0 -a 0
+          pandoc: 'false'
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

@@ -27,6 +27,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate release notes
+        shell: bash
+        run: |
+          if [[ ! -f RELEASE_NOTES.md ]] || ! grep -q '[^[:space:]]' RELEASE_NOTES.md; then
+            echo "::error::RELEASE_NOTES.md must exist and contain release notes."
+            exit 1
+          fi
+
       - name: Validate release tag
         shell: bash
         run: |

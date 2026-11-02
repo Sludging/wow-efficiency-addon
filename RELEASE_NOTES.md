@@ -1,0 +1,3 @@
+- Added tracking for new Midnight profession knowledge books.
+- Improved weekly profession quest tracking.
+- Updated compatibility with World of Warcraft 12.1.5.

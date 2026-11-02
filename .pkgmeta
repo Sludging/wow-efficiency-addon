@@ -1,5 +1,9 @@
 package-as: WowEfficiency
 
+manual-changelog:
+  filename: RELEASE_NOTES.md
+  markup-type: markdown
+
 # WowEfficiency/.pkgmeta
 externals:
   Libs/LibStub:
@@ -47,6 +51,7 @@ ignore:
   - .env
   - .env.*
   - README.md
+  - Data/Quests/README.md
   - Context.md
   - Scripts
   - Libs/LibStub/tests

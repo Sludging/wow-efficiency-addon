@@ -1,50 +1,75 @@
-# Skill: Add Quest Data
+# Add Quest Data
 
-Use this skill when the user wants to add, modify, or organize quest tracking data in the addon.
+Use this skill when adding, changing, or organizing addon quest IDs.
 
-## Quest Sources
+## Data Layout
 
-For patch work, read `../wow-efficiency/.claude/skills/static-data-updates/SKILL.md` from the addon repository root.
+Quest data files populate the shared addon namespace.
+They contain data rather than collection logic.
+Expansion-specific files use `Data/Quests/<Expansion>/<Group>/<Topic>.lua`.
+The existing expansion keys are `TWW` and `Midnight`.
 
-Use official notes to set the relevant scope.
-Check whether local reference addons in `.reference-repos/` are maintained.
-Refresh maintained repositories before using their data.
-Use reference addon IDs and tracking rules first.
-Use guides such as Wowhead to cross-check.
-Use datamining, UI source, and in-game queries only for missing information.
+The existing groups use these namespace roots:
 
-## How Quest Data Works
+- `Professions` uses `WowEfficiency.ProfessionQuests`.
+- `Delves` uses `WowEfficiency.DelveQuests`.
+- `Events` uses `WowEfficiency.EventQuests`.
 
-Quest data lives in `Data/Quests/` as pure data files, separate from tracking logic. Each file populates the shared addon namespace (e.g., `WowEfficiency.ProfessionQuests`) which the Quests module reads at load time. Add quest IDs to existing groups without changing collection logic.
+Each root contains an expansion table.
+That table contains topics with named quest categories.
+For example, `Data/Quests/Midnight/Professions/Alchemy.lua` defines categories under `WowEfficiency.ProfessionQuests.Midnight.Alchemy`.
+Event data follows the same pattern under `WowEfficiency.EventQuests.Midnight`.
 
-Quest groups (like `Professions`, `Delves`) each have their own namespace key and subdirectory. Within a group, each file represents a specific topic (e.g., one file per profession) and organizes quest IDs into named categories.
+Cross-expansion data lives in `Data/Quests/Shared/`.
+For example, `Darkmoon.lua` defines profession quest arrays under `WowEfficiency.ProfessionQuests.Shared.Darkmoon`.
 
-## What Needs to Change
+## Change an Existing File
 
-The scope depends on what's being added:
+1. Find the file for the expansion and topic.
+2. Check the existing namespace and category names.
+3. Add or correct IDs in the appropriate category.
 
-Addon quest IDs control collection.
-Website objectives define tracked goals.
-Update website objectives when tracked quests or rules change.
-Add static metadata when the website needs names or images for new IDs.
-Static metadata does not define objectives or player state.
-Not every edit needs changes in all layers.
+Use flat arrays of positive numeric quest IDs for category values.
+Use reference addons in `.reference-repos/` to cross-check quest IDs when available.
+Keep non-quest numeric values outside these tables.
+`Table:FlattenQuestIDs()` recursively collects every positive numeric value and removes duplicate IDs.
 
-### Adding quest IDs to an existing file
-Edit the addon data file. Apply the website changes described above when needed.
+Changes to an existing file do not require a TOC change.
+Changes within an existing group do not require collection logic changes.
 
-### Adding a new file to an existing group (e.g., a new profession)
-1. Create the data file in the appropriate `Data/Quests/<Expansion>/<Group>/` directory. Follow the pattern of an existing file in the same group - they all share the same namespace key and structure.
-2. Add the file to `WowEfficiency.toc` in the quest data section. It must appear **before** `Modules\Quests.lua` in the TOC. Place it alphabetically within its group.
+## Add a File to an Existing Group
 
-### Adding an entirely new quest group (e.g., "Raids", "Events")
-1. Create a new subdirectory under `Data/Quests/` and add data file(s) following the namespace pattern - look at existing groups for the convention, but use a new namespace key (e.g., `WowEfficiency.RaidQuests`).
-2. Add the files to `WowEfficiency.toc` before `Modules\Quests.lua`.
-3. Update the `StructuredQuests` table in `Modules/Quests.lua` to include the new group from the namespace.
+1. Create the file in `Data/Quests/<Expansion>/<Group>/`.
+2. Get the addon namespace with `local _, WowEfficiency = ...`.
+3. Initialize the namespace root if it does not exist.
+4. Initialize the expansion table if it does not exist.
+5. Define the topic's quest categories.
+6. Add the file to `WowEfficiency.toc` before `Modules\Quests.lua`.
 
-## Key Things to Remember
+Follow an existing file from the same group for namespace initialization.
+Use backslashes in TOC paths.
+Keep the file with its expansion and group in the TOC.
+WoW does not execute files that are absent from the TOC.
 
-- Quest IDs are plain numbers. Use the source order above.
-- TOC paths use backslashes (`Data\Quests\TWW\Professions\Alchemy.lua`)
-- Data files must load before `Modules\Quests.lua` in the TOC or the data won't be available
-- The `Table:FlattenQuestIDs()` utility recursively extracts all numeric IDs from any nesting depth, so category structure is flexible
+## Add a New Group
+
+1. Create `Data/Quests/<Expansion>/<Group>/`.
+2. Create the data files with a new namespace root.
+3. Initialize the namespace root and expansion table in each file.
+4. Add each file to `WowEfficiency.toc` before `Modules\Quests.lua`.
+5. Add the namespace root to `StructuredQuests` in `Modules/Quests.lua`.
+
+Use a distinct root such as `WowEfficiency.RaidQuests` for a new group.
+The `StructuredQuests` entry makes that root available to the existing flattener.
+Use the existing `Professions`, `Delves`, or `Events` group when it already fits the data.
+
+## Collection and Weekly Reset
+
+`Modules/Quests.lua` assembles `StructuredQuests` after the data files load.
+The module flattens the groups into its tracked quest list.
+It checks each ID with `C_QuestLog.IsQuestFlaggedCompleted`.
+Quest and loot events trigger collection through a three-second event bucket.
+
+The DB module stores completed IDs in each character's `completedQuests` map.
+Completed IDs remain stored until the DB module processes that character's weekly reset.
+New IDs use this existing collection and reset behavior.

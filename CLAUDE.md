@@ -1,8 +1,10 @@
 # WowEfficiency Addon
 
-A World of Warcraft addon that collects in-game data not available from the public Battle.net API. Data is stored in WoW's SavedVariables (`WowEfficiencyDB`) and uploaded by users to the companion website (wowefficiency.com).
+This World of Warcraft addon collects in-game data that the public Battle.net API does not provide.
+The addon stores this data locally in WoW's SavedVariables (`WowEfficiencyDB`).
+The companion website (wowefficiency.com) reads the local SavedVariables file in the user's browser.
 
-No test framework or linter - changes are verified by loading in-game. Before release setup, tag creation, publishing, or local packaging, read [README.md → Releases](README.md#releases).
+The addon has no test framework or linter. Verify changes in-game. Read [README.md → Releases](README.md#releases) before releasing or packaging.
 
 ## Architecture Decisions
 
@@ -28,8 +30,6 @@ Quest IDs live in `Data/Quests/` as pure data files separate from logic. Directo
 - Data files populate the shared addon namespaces: `ProfessionQuests`, `DelveQuests`, and `EventQuests`.
 - The Quests module lists supported groups in `StructuredQuests` and flattens their IDs via `Table:FlattenQuestIDs()`.
 - Adding IDs within known groups requires only data file changes. New files also need TOC entries; new groups need `StructuredQuests` entries.
-
-The addon collects Aqir Invasion weekly completion through `EventQuests.Midnight.AqirInvasion.Weekly`. The website has no Aqir Invasion task.
 
 ### Weekly Reset Handling
 
@@ -63,7 +63,7 @@ The TOC file controls what WoW loads and in what order. The ordering is intentio
 
 ## Patch Updates
 
-For major content patches, season changes, or relevant hotfixes, read `../wow-efficiency/.claude/skills/static-data-updates/SKILL.md` from the addon repository root.
+Read [.claude/skills/add-quest-data.md](.claude/skills/add-quest-data.md) before changing addon quest data for patches, seasons, or hotfixes.
 
 ## Slash Commands
 

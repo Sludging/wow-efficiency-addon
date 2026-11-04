@@ -8,14 +8,28 @@ The website reads this local file to show character progress.
 [`Edition.lua`](../Edition.lua) loads immediately after [`Init.lua`](../Init.lua), before data files and collector modules.
 It stores the selected configuration in `addonNamespace.Edition`.
 
-The configuration separates the game edition from its content expansions.
-Retail uses the existing `TWW` and `Midnight` expansion data.
-Forever uses a separate content selection.
+Model the game edition above its content expansions.
+Use the selected edition to choose content and collector behavior rather than treating an edition as another expansion.
+`Edition.lua` is the source of truth for client detection, collector selection, content keys, and collection thresholds.
+Read those values from the configuration instead of duplicating them in modules or documentation.
 
-Forever shares the Mainline project ID with Retail.
-The addon therefore checks the interface version first.
-Interface versions from 16000 through 16999 select Forever.
-Other Mainline versions select Retail.
+Edition detection must distinguish clients that share a project ID.
+Do not assume the project ID alone identifies the edition.
+
+### Collector selection
+
+`addonNamespace.Edition.collectors` selects collector implementations by their Ace module names.
+Each collector checks its selection before registering a module or capturing edition-specific game APIs.
+This keeps inactive implementations from requiring their APIs during file loading.
+The selection describes supported addon implementations, not which systems or APIs exist in an edition.
+Share data structures and collector behavior where their contracts match; edition support does not require a separate addon.
+
+The shared status panel creates cards only for registered collectors.
+It must not require inactive collector modules.
+Create frames once, then update their text, textures, visibility, and layout in place.
+Refreshes must not create frames and should subscribe only to relevant data-update events.
+If no active collector has a status card, show a short notice.
+Keep display eligibility distinct from collection eligibility, and derive edition-dependent behavior from the selected configuration.
 
 ### Quest data
 
@@ -23,21 +37,15 @@ Quest data files populate the profession, delve, and event namespace roots.
 The shared quest collector selects content from these roots when its file loads.
 It references the selected tables and builds one list of unique quest IDs.
 
-| Edition | Selected content keys | Minimum collection level |
-| --- | --- | --- |
-| Retail | `Shared`, `TWW`, `Midnight` | 70 |
-| Forever | `Forever` | 1 |
+Select content keys and the minimum collection level from the edition configuration.
+The collection threshold controls when the collector can run; individual objectives can have higher eligibility requirements.
+Keep edition-specific data selection separate from shared collection behavior.
 
-`Shared` contains cross-expansion Retail data. It is not shared between editions.
-The minimum collection level controls when the collector can run.
-Individual objectives can have higher eligibility requirements.
+An empty selected quest list must not advance quest freshness.
+Completed quest flags use the shared weekly reset policy rather than a separate edition-specific reset mechanism.
 
-Forever has no configured quest objectives.
-An empty quest list does not update quest freshness.
-Completed quest flags use the existing weekly reset policy.
-
-Edition configuration alone does not establish Forever client compatibility.
-Verify startup, collection, and saved data in the game before release.
+Configuration and static inspection alone do not establish client compatibility.
+Verify startup, API calls, event delivery, collection, and saved data in the target game client before release.
 
 ## Releases
 

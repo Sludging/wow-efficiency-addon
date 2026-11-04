@@ -1,5 +1,9 @@
 -- Get the addon name passed by WoW when loading the file
-local addonName = select(1, ...)
+local addonName, addonNamespace = select(1, ...), select(2, ...)
+
+if not addonNamespace.Edition.collectors['Professions'] then
+    return
+end
 
 -- Get the main addon object
 ---@type WoWEfficiency_Addon

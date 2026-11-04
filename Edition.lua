@@ -7,6 +7,9 @@ local _, _, _, interfaceVersion = GetBuildInfo()
 if interfaceVersion >= 16000 and interfaceVersion < 17000 then
     addonNamespace.Edition = {
         id = "forever",
+        collectors = {
+            Quests = true,
+        },
         quests = {
             contentKeys = { "Forever" },
             -- Collection floor only; individual objectives may require higher levels.
@@ -16,16 +19,29 @@ if interfaceVersion >= 16000 and interfaceVersion < 17000 then
 elseif WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
     addonNamespace.Edition = {
         id = "retail",
+        collectors = {
+            Quests = true,
+            Professions = true,
+            ["Professions.Cooldowns"] = true,
+            ["Professions.Concentration"] = true,
+            Bank = true,
+            Currencies = true,
+        },
         quests = {
             contentKeys = { "Shared", "TWW", "Midnight" },
             -- Lowest collection level across the selected expansions (TWW=70, Midnight=80).
             minLevel = 70,
+        },
+        status = {
+            minLevel = 78,
+            professionContentKey = "Midnight",
         },
     }
 else
     -- Other Classic editions must not inherit Retail's tracked content.
     addonNamespace.Edition = {
         id = "unsupported",
+        collectors = {},
         quests = {
             contentKeys = {},
             minLevel = 1,

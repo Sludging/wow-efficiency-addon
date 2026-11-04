@@ -1,6 +1,10 @@
 -- Get the addon name and namespace passed by WoW when loading the file
 local addonName, addonNamespace = select(1, ...), select(2, ...)
 
+if not addonNamespace.Edition.collectors['Quests'] then
+    return
+end
+
 -- Get the main addon object
 ---@type WoWEfficiency_Addon
 local WoWEfficiency = LibStub('AceAddon-3.0'):GetAddon(addonName)

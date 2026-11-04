@@ -8,6 +8,8 @@ The website reads this local file to show character progress.
 [`Init.lua`](../Init.lua) loads first, followed by the pure profession catalogues in `Data/Professions/`.
 [`Edition.lua`](../Edition.lua) then selects configuration before quest data and collector modules load.
 It stores the selected configuration in `addonNamespace.Edition`.
+Both edition manifests load [`WowEfficiency.xml`](../WowEfficiency.xml), which owns the ordered file list.
+Add new Lua files to that XML list; keep edition manifest metadata separate from load order.
 
 Model the game edition above its content expansions.
 Use the selected edition to choose content and collector behavior rather than treating an edition as another expansion.
@@ -76,6 +78,62 @@ Completed quest flags use the shared weekly reset policy rather than a separate 
 Configuration and static inspection alone do not establish client compatibility.
 Verify startup, API calls, event delivery, collection, and saved data in the target game client before release.
 
+## Saved data
+
+DB initialization writes the selected edition to `WowEfficiencyDB.global.gameEdition` alongside the lowercase `global.region`.
+These are explicit saved values, not only AceDB defaults.
+AceDB owns character keys: surname-aware full names for regional-unique-name clients, and name/realm keys for Retail.
+Keep edition detection separate from AceDB's client name handling.
+Both editions keep the addon folder `WowEfficiency`, SavedVariables global `WowEfficiencyDB`, and file name `WowEfficiency.lua`.
+The shared weekly reset clears each character's completed quest flags when due; profession data persists.
+
+The packaged AceDB must support surname-aware names.
+`.pkgmeta` selects the dependency revision; do not replace the vendored checkout by hand.
+Inspect the actual packaged implementation after dependency changes.
+Controlled name tuples can check storage logic but cannot prove live client names or saved files.
+
+## Local packaging
+
+Run from the repository root with Bash, Git, `curl`, Subversion (`svn`), `zip`, `sha256sum`, and upstream's usual Unix tools.
+Dependency downloads require network access.
+
+```bash
+bash Scripts/package.sh forever
+bash Scripts/package.sh retail
+bash Scripts/package.sh forever /path/to/output
+```
+
+The optional second argument selects the output directory.
+By default, packages go to the sibling directory `../wow-efficiency-addon-artifacts/<edition>/`, not the source tree.
+Each command creates a `WowEfficiency` folder and ZIP.
+The wrapper passes `-d` to disable uploads, `-l` to skip localization fetches, and `-u` for Unix line endings.
+These commands do not publish a release.
+
+The packager excludes untracked files, so add new source files to Git before packaging.
+It copies tracked working-tree changes; the Git-derived ZIP version does not identify uncommitted changes.
+Use the intended annotated release tag when building a local package for that release.
+Do not rename a development ZIP to make it look like a tagged release.
+
+`Scripts/packager.lock` is the single upstream version pin for local packaging and CI.
+`Scripts/release.sh` fetches the pinned upstream scripts and checks their SHA-256 digests before use.
+CI runs upstream setup before packaging; fetched upstream scripts stay unmodified.
+Update the pin with:
+
+```bash
+bash Scripts/update-packager.sh vX.Y.Z
+```
+
+Review the resolved commit, both script digests, and upstream changes.
+Then smoke-build both editions and inspect their manifests, XML paths, libraries, and exclusion of development files.
+
+Install the produced `WowEfficiency` folder in the target client's `Interface/AddOns/` directory (`_forever_/Interface/AddOns/` for Forever).
+The folder must directly contain the manifest files, not another nested addon folder.
+Use `/reload` or log out to write `WTF/Account/<account>/SavedVariables/WowEfficiency.lua` under that client.
+Check startup, profession data, character-name keys, region, and edition in the real client.
+Forever keys must include the full surname-aware name.
+Close and restart the client to check persistence.
+A successful package build does not replace these live checks.
+
 ## Releases
 
 ### Release notes
@@ -118,17 +176,3 @@ The packager replaces `## Version: @project-version@` in the packaged TOC with t
 The separate `## Interface` value declares WoW client compatibility.
 It does not set the addon release version.
 
-### Local packaging fallback
-
-Run this command from the repository root:
-
-```bash
-bash Scripts/release.sh -p 1268061 -d
-```
-
-This command packages the working tree into `.release/` without publishing it.
-The local script does not support Forever packaging.
-The local ZIP is not a published release.
-The packager derives the version from Git.
-Use a checkout of the intended annotated release tag when you need a local package for that release.
-Do not rename a development ZIP to make it look like a tagged release.

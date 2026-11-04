@@ -29,7 +29,7 @@ Each feature area is its own Ace module to enforce clear boundaries:
 Quest IDs live in `Data/Quests/` as pure data files separate from logic. Directories include `Shared/`, `TWW/Professions/`, `TWW/Delves/`, `Midnight/Professions/`, and `Midnight/Events/`.
 - Data files populate the shared addon namespaces: `ProfessionQuests`, `DelveQuests`, and `EventQuests`.
 - The Quests module lists supported groups in `StructuredQuests` and flattens their IDs via `Table:FlattenQuestIDs()`.
-- Adding IDs within known groups requires only data file changes. New files also need TOC entries; new groups need `StructuredQuests` entries.
+- Adding IDs within known groups requires only data file changes. New files also need `Script` entries in `WowEfficiency.xml`; new groups need selected-content entries in `StructuredQuests`.
 
 ### Weekly Reset Handling
 
@@ -52,14 +52,15 @@ Pure catalogues in `Data/Professions/` load before `Edition.lua`, which selects 
 
 ## TOC Load Order
 
-The TOC file controls what WoW loads and in what order. The ordering is intentional:
+Both edition TOCs own edition metadata and load the same `WowEfficiency.xml`. The common XML owns the ordered file list:
 1. Libraries first (they provide the framework)
 2. `Init.lua` creates the addon object that everything else references
-3. `DB` and `Debug` modules next since all other modules depend on them
-4. Data files before `Modules/Quests.lua` so the namespace is populated when the Quests module reads it. Data files are ordered: `Data\Quests\Shared\` → `Data\Quests\TWW\` → `Data\Quests\Midnight\`
-5. `Core.lua` last because it wires up slash commands that reference all modules
+3. Profession catalogues load before `Edition.lua`, which selects edition policy and data
+4. Types and utilities load before `DB` and `Debug`, which other modules depend on
+5. Quest data loads before `Modules/Quests.lua` so its namespaces are populated. Quest data is ordered: `Data\Quests\Shared\` → `Data\Quests\TWW\` → `Data\Quests\Midnight\`
+6. Guarded collection modules load after their dependencies, followed by UI and `Core.lua`; Core wires up slash commands that reference all modules
 
-**Any new `.lua` file must be added to the TOC or WoW silently ignores it.** TOC paths use backslashes.
+**Add every new `.lua` file as a `Script` entry in `WowEfficiency.xml` or WoW silently ignores it.** Use backslashes in `file` attributes, for example `<Script file="Data\Quests\Midnight\Professions\Alchemy.lua"/>`, and place quest data before `Modules\Quests.lua`.
 
 ## Patch Updates
 
@@ -73,4 +74,7 @@ Read [.claude/skills/add-quest-data.md](.claude/skills/add-quest-data.md) before
 
 - `Libs/` - vendored Ace3/LibStub, managed by `.pkgmeta`
 - `.release/` - generated output from the packager
-- `Scripts/` - release tooling
+
+## Packaging Tooling
+
+Maintain the repository-owned wrappers in `Scripts/`. `Scripts/packager.lock` pins the upstream version, commit, and script digests for local builds and CI. Keep fetched upstream scripts unmodified. Read [Development guide → Local packaging](docs/DEVELOPMENT.md#local-packaging) before packaging or updating the pin.

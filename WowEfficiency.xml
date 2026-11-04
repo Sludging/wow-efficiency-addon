@@ -1,0 +1,69 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <!-- Load libraries - Order matters! -->
+    <Script file="Libs\LibStub\LibStub.lua"/>
+    <Include file="Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml"/>
+    <Include file="Libs\Ace3\AceAddon-3.0\AceAddon-3.0.xml"/>
+    <Include file="Libs\Ace3\AceEvent-3.0\AceEvent-3.0.xml"/>
+    <Include file="Libs\Ace3\AceDB-3.0\AceDB-3.0.xml"/>
+    <Include file="Libs\Ace3\AceConsole-3.0\AceConsole-3.0.xml"/>
+    <Include file="Libs\Ace3\AceBucket-3.0\AceBucket-3.0.xml"/>
+    <Script file="Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua"/>
+    <Script file="Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua"/>
+
+    <!-- Our addon files -->
+    <Script file="Init.lua"/>
+    <Script file="Data\Professions\Retail.lua"/>
+    <Script file="Data\Professions\Forever.lua"/>
+    <Script file="Edition.lua"/>
+    <Script file="Types.lua"/>
+    <Script file="Utils\Table.lua"/>
+    <Script file="Utils\Frame.lua"/>
+    <Script file="Modules\DB.lua"/>
+    <Script file="Modules\Debug.lua"/>
+
+    <!-- Quest Data Files - these populate the addon namespace when loaded -->
+    <!-- Shared (cross-expansion) -->
+    <Script file="Data\Quests\Shared\Darkmoon.lua"/>
+    <!-- TWW -->
+    <Script file="Data\Quests\TWW\Professions\Alchemy.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Blacksmithing.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Enchanting.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Engineering.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Herbalism.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Inscription.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Jewelcrafting.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Leatherworking.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Mining.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Skinning.lua"/>
+    <Script file="Data\Quests\TWW\Professions\Tailoring.lua"/>
+    <Script file="Data\Quests\TWW\Delves\TitanBelt.lua"/>
+    <!-- Midnight -->
+    <Script file="Data\Quests\Midnight\Professions\Alchemy.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Blacksmithing.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Enchanting.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Engineering.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Herbalism.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Inscription.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Jewelcrafting.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Leatherworking.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Mining.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Skinning.lua"/>
+    <Script file="Data\Quests\Midnight\Professions\Tailoring.lua"/>
+    <Script file="Data\Quests\Midnight\Events\AqirInvasion.lua"/>
+
+    <!-- Quests -->
+    <Script file="Modules\Quests.lua"/>
+    <!-- Professions -->
+    <Script file="Modules\Professions\Retail.lua"/>
+    <Script file="Modules\Professions.lua"/>
+    <Script file="Modules\Professions\Cooldowns.lua"/>
+    <Script file="Modules\Professions\Concentration.lua"/>
+    <!-- Bank -->
+    <Script file="Modules\Bank.lua"/>
+    <!-- Currencies -->
+    <Script file="Modules\Currencies.lua"/>
+    <!-- UI -->
+    <Script file="Modules\UI.lua"/>
+    <!-- Core -->
+    <Script file="Core.lua"/>
+</Ui>

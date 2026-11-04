@@ -23,6 +23,8 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 # Our addon files
 Init.lua
+Data\Professions\Retail.lua
+Data\Professions\Forever.lua
 Edition.lua
 Types.lua
 Utils\Table.lua
@@ -63,6 +65,7 @@ Data\Quests\Midnight\Events\AqirInvasion.lua
 # Quests
 Modules\Quests.lua
 # Professions
+Modules\Professions\Retail.lua
 Modules\Professions.lua
 Modules\Professions\Cooldowns.lua
 Modules\Professions\Concentration.lua

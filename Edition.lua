@@ -9,11 +9,22 @@ if interfaceVersion >= 16000 and interfaceVersion < 17000 then
         id = "forever",
         collectors = {
             Quests = true,
+            Professions = true,
         },
         quests = {
             contentKeys = { "Forever" },
             -- Collection floor only; individual objectives may require higher levels.
             minLevel = 1,
+        },
+        professions = {
+            minLevel = 1,
+            includeSecondary = true,
+            maxSlots = 5,
+            data = addonNamespace.ProfessionData.forever,
+        },
+        status = {
+            minLevel = 1,
+            professionContentKey = "base",
         },
     }
 elseif WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
@@ -22,6 +33,7 @@ elseif WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
         collectors = {
             Quests = true,
             Professions = true,
+            ["Professions.Retail"] = true,
             ["Professions.Cooldowns"] = true,
             ["Professions.Concentration"] = true,
             Bank = true,
@@ -31,6 +43,12 @@ elseif WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
             contentKeys = { "Shared", "TWW", "Midnight" },
             -- Lowest collection level across the selected expansions (TWW=70, Midnight=80).
             minLevel = 70,
+        },
+        professions = {
+            minLevel = 70,
+            includeSecondary = false,
+            maxSlots = 2,
+            data = addonNamespace.ProfessionData.retail,
         },
         status = {
             minLevel = 78,

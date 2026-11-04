@@ -20,8 +20,6 @@ local CurrenciesModule = WoWEfficiency:GetModule('Currencies', true)
 -- Upvalue global API functions
 local C_Timer_After = C_Timer.After
 local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo
-local _GetProfessions = GetProfessions
-local _GetProfessionInfo = GetProfessionInfo
 local _UnitLevel = UnitLevel
 local _GetServerTime = GetServerTime
 local statusConfig = addonNamespace.Edition.status
@@ -78,7 +76,7 @@ local contentRefs = {
     profHeading    = nil, -- "Professions" section heading frame
     levelNotice    = nil, -- shown below the selected edition's status level
     noProfNotice   = nil, -- shown when player has no tracked professions
-    profSlots      = {}, -- [1] and [2] for the two possible profession cards
+    profSlots      = {}, -- reusable profession cards, sized by the edition configuration
     accountHeading = nil, -- "Account Data" section heading frame
     currencies     = nil, -- card frame refs for currencies
     warbank        = nil, -- card frame refs for warbank gold
@@ -382,8 +380,9 @@ local function CreateProfessionSection(parent)
     contentRefs.profHeading = CreateHeadingFrame(parent, "Professions")
     contentRefs.noProfNotice = CreateNoticeFrame(parent,
         "No tracked professions found for this character.")
-    contentRefs.profSlots[1] = CreateProfessionSlot(parent)
-    contentRefs.profSlots[2] = CreateProfessionSlot(parent)
+    for i = 1, addonNamespace.Edition.professions.maxSlots do
+        contentRefs.profSlots[i] = CreateProfessionSlot(parent)
+    end
 end
 
 --- Creates the reusable currency card when currency tracking is enabled.
@@ -424,17 +423,10 @@ function Module:CreateContent()
     end
 end
 
---- Returns the character's tracked primary professions, sorted by display name.
---- Each entry contains the skill-line ID, name, and icon texture.
+--- Returns the character's tracked professions, sorted by display name.
+--- Each entry contains the skill-line ID, name, icon texture, and current skill ranks.
 local function GetTrackedProfessions()
-    local prof1, prof2 = _GetProfessions()
-    local profs = {}
-    for _, idx in pairs({ prof1, prof2 }) do
-        local profName, profTex, _, _, _, _, skillLineID = _GetProfessionInfo(idx)
-        if skillLineID and ProfessionsModule.Constants[skillLineID] then
-            table.insert(profs, { id = skillLineID, name = profName, texture = profTex })
-        end
-    end
+    local profs = ProfessionsModule:GetTrackedProfessions()
     table.sort(profs, function(a, b) return a.name < b.name end)
     return profs
 end

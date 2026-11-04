@@ -5,7 +5,8 @@ The website reads this local file to show character progress.
 
 ## Edition configuration
 
-[`Edition.lua`](../Edition.lua) loads immediately after [`Init.lua`](../Init.lua), before data files and collector modules.
+[`Init.lua`](../Init.lua) loads first, followed by the pure profession catalogues in `Data/Professions/`.
+[`Edition.lua`](../Edition.lua) then selects configuration before quest data and collector modules load.
 It stores the selected configuration in `addonNamespace.Edition`.
 
 Model the game edition above its content expansions.
@@ -30,6 +31,34 @@ Create frames once, then update their text, textures, visibility, and layout in 
 Refreshes must not create frames and should subscribe only to relevant data-update events.
 If no active collector has a status card, show a short notice.
 Keep display eligibility distinct from collection eligibility, and derive edition-dependent behavior from the selected configuration.
+
+### Profession data
+
+The shared profession module discovers supported professions and records reported ranks.
+Collection and status display use the same discovery method, so filtering is not duplicated in the UI.
+Edition configuration selects profession eligibility, secondary-slot inclusion, and status display policy.
+
+`Data/Professions/` owns the edition-keyed profession catalogues.
+`addonNamespace.Edition.professions.data` references the selected catalogue for both discovery and detail collection.
+Catalogue entries use the base skill-line ID as the key.
+Retail entries place expansion-specific fields under `expansions`; shared discovery does not depend on the Retail module.
+Keep static API tier IDs distinct from runtime skill-line IDs, and add them only when a consumer needs them.
+
+Store common skill data in `professions[skillLineID].base`:
+
+- `level`: the reported current rank.
+- `maxLevel`: the reported trained maximum rank.
+- `professionName`: the localized profession name.
+
+Keep these fields nested under `base`.
+The legacy schema migration interprets flat rank fields as old Retail expansion data.
+Do not derive trained ranks or caps from static metadata tiers.
+A temporary report with no valid maximum must not erase a stored base snapshot.
+
+`Modules/Professions/Retail.lua` adds expansion-specific knowledge, specialization, and currency details.
+Its existing expansion keys remain separate from the base snapshot.
+It loads before the shared profession module and guards its Retail API access through collector selection.
+Window-specific cooldown and concentration modules remain separate.
 
 ### Quest data
 

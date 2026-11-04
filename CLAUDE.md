@@ -21,7 +21,7 @@ The addon uses Ace3 rather than raw WoW API frames/events because:
 Each feature area is its own Ace module to enforce clear boundaries:
 - **DB module** owns all SavedVariables access. Other modules never touch `WowEfficiencyDB` directly - they go through `db:GetCharDBKey()` / `db:UpdateCharDBKey()`. The update path auto-timestamps via `TrackLastUpdated()` so the website knows data freshness.
 - **Quests module** handles quest completion tracking. It flattens the nested quest data structure (loaded from `Data/Quests/` files) into a flat list at load time so the runtime check is a simple loop.
-- **Professions module** collects skill levels, knowledge points, and specialization trees. Sub-modules (`Cooldowns`, `Concentration`) handle data that requires an open profession window (`TRADE_SKILL_LIST_UPDATE` only fires when the UI is open).
+- **Professions module** discovers supported professions and stores common rank data under `professions[skillLineID].base`. `Professions.Retail` adds expansion-specific knowledge and specialization data. Sub-modules (`Cooldowns`, `Concentration`) handle data that requires an open profession window (`TRADE_SKILL_LIST_UPDATE` only fires when the UI is open). Read [profession data](docs/DEVELOPMENT.md#profession-data) before changing this storage contract.
 - **Debug module** provides conditional printing gated by a profile-level `debugMode` flag, toggled via `/we debug`.
 
 ### Data Files vs Module Code
@@ -37,11 +37,11 @@ The DB module tracks `nextWeeklyReset` per character. On login, if server time h
 
 ### Level Gate
 
-Data collection uses per-expansion minimum levels: TWW requires level 70+, Midnight requires level 80+. The Professions module gates extraction per-expansion inside its loop using `minLevel` from each expansion's Constants entry. The Quests module gates on level 70 (the lowest expansion minimum) so quest tracking activates as soon as any expansion content is relevant.
+`Edition.lua` selects collection thresholds and display policy. Retail profession details apply per-expansion `minLevel` values inside `Professions.Retail`; shared profession and quest collection use their selected edition configuration. Keep collection eligibility separate from status-panel display eligibility.
 
-### Profession Constants
+### Profession Data
 
-All Constants tables use a profession-first, expansion-second keying pattern: `Constants[skillLineID].TWW`, `Constants[skillLineID].Midnight`. Each expansion sub-key contains `minLevel`, `skillLineVariantID`, `catchUpCurrencyID`, and (for crafting professions) `concentrationCurrencyID`. The DB stores profession data the same way: `professions[skillLineID].TWW = { level, maxLevel, ... }`. Sub-module constants (Cooldowns, Concentration) follow the same pattern. The cooldowns constants list expansion-specific `recipeID`s that have daily/charge-based cooldowns.
+Pure catalogues in `Data/Professions/` load before `Edition.lua`, which selects one through `Edition.professions.data`. Entries are keyed by base skill-line ID; Retail detail fields live under `entry.expansions[expansion]`. Shared discovery and Retail enrichment consume this same selected catalogue. Saved data retains `professions[skillLineID].base` and expansion keys directly under the profession record. Cooldown and concentration constants remain profession-first, expansion-second; cooldown constants contain expansion-specific recipe IDs. Read [profession data](docs/DEVELOPMENT.md#profession-data) before changing the catalogue or storage shape.
 
 ### UI Module
 

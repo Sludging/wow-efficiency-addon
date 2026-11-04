@@ -4,7 +4,7 @@ This World of Warcraft addon collects in-game data that the public Battle.net AP
 The addon stores this data locally in WoW's SavedVariables (`WowEfficiencyDB`).
 The companion website (wowefficiency.com) reads the local SavedVariables file in the user's browser.
 
-The addon has no test framework or linter. Verify changes in-game. Read [README.md → Releases](README.md#releases) before releasing or packaging.
+The addon has no test framework or linter. Verify changes in-game. Read [docs/DEVELOPMENT.md → Releases](docs/DEVELOPMENT.md#releases) before releasing or packaging.
 
 ## Architecture Decisions
 

@@ -23,6 +23,7 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 # Our addon files
 Init.lua
+Edition.lua
 Types.lua
 Utils\Table.lua
 Utils\Frame.lua

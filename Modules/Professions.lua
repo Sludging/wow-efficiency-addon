@@ -1,5 +1,9 @@
 -- Get the addon name passed by WoW when loading the file
-local addonName = select(1, ...)
+local addonName, addonNamespace = select(1, ...), select(2, ...)
+
+if not addonNamespace.Edition.collectors['Professions'] then
+    return
+end
 
 -- Get the main addon object
 ---@type WoWEfficiency_Addon
@@ -10,27 +14,23 @@ local WoWEfficiency = LibStub('AceAddon-3.0'):GetAddon(addonName)
 local Debug = WoWEfficiency:GetModule('Debug')
 ---@type WoWEfficiency_DB
 local db = WoWEfficiency:GetModule('DB')
+---@type WoWEfficiency_Professions_Retail|nil
+local Retail = WoWEfficiency:GetModule('Professions.Retail', true)
+local professionConfig = addonNamespace.Edition.professions
+local professionData = professionConfig.data
 
 -- Define the module
 ---@class WoWEfficiency_Professions: AceModule, AceEvent-3.0, AceBucket-3.0
 ---@field UpdateProfessions fun(self: WoWEfficiency_Professions)
 ---@field OnEnable fun(self: WoWEfficiency_Professions)
 ---@field OnInitialize fun(self: WoWEfficiency_Professions)
----@field Constants table
+---@field GetTrackedProfessions fun(self: WoWEfficiency_Professions): table
 local Module = WoWEfficiency:NewModule('Professions', "AceBucket-3.0")
 
 -- Upvalue global functions
 local _GetProfessions = GetProfessions
 local _GetProfessionInfo = GetProfessionInfo
-local C_ProfSpecs_GetCurrencyInfoForSkillLine = C_ProfSpecs.GetCurrencyInfoForSkillLine
-local C_ProfSpecs_GetConfigIDForSkillLine = C_ProfSpecs.GetConfigIDForSkillLine
-local C_Traits_GetConfigInfo = C_Traits.GetConfigInfo
-local C_Traits_GetTreeNodes = C_Traits.GetTreeNodes
-local C_Traits_GetNodeInfo = C_Traits.GetNodeInfo
-local C_ProfSpecs_GetStateForTab = C_ProfSpecs.GetStateForTab
-local C_ProfSpecs_GetTabInfo = C_ProfSpecs.GetTabInfo
-local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
-local C_TradeSkillUI_GetProfessionInfoBySkillLineID = C_TradeSkillUI.GetProfessionInfoBySkillLineID
+local _UnitLevel = UnitLevel
 
 function Module:OnInitialize()
     Debug:DebugPrint("Professions Module" .. " Initialized.")
@@ -42,173 +42,71 @@ function Module:OnEnable()
     -- Trigger update profession as soon as possible to make it available for the other functions
     self:RegisterEvent('PLAYER_ENTERING_WORLD', "UpdateProfessions")
     -- Register bucket events for profession updates
+    local events = {
+        'SKILL_LINES_CHANGED',
+        'TRADE_SKILL_LIST_UPDATE',
+    }
+    if Retail then
+        events[#events + 1] = 'CURRENCY_DISPLAY_UPDATE'
+    end
     self:RegisterBucketEvent(
     ---@diagnostic disable-next-line: param-type-mismatch
-        {
-            'SKILL_LINES_CHANGED',
-            'TRADE_SKILL_LIST_UPDATE',
-            'CURRENCY_DISPLAY_UPDATE',
-        },
+        events,
         3,
         "UpdateProfessions"
     )
 end
 
-local GetExpansionProfStruct = function()
-    return {
-        level = 0,
-        maxLevel = 0,
-        knowledgeLevel = 0,
-        knowledgeMaxLevel = 0,
-        knowledgeUnspent = 0,
-        specializations = {},
-        cooldowns = {},
-        concentration = nil,
-    }
-end
-
-local GetSpecializationStruct = function(tabInfo, treeID, configID)
-    return {
-        tabInfo = tabInfo,
-        state = C_ProfSpecs_GetStateForTab(treeID, configID),
-        treeID = treeID,
-        configID = configID,
-        knowledgeLevel = 0,
-        knowledgeMaxLevel = 0
-    }
-end
-
-local ExtractExpansionData = function(variantConstants, existingData)
-    local expansionStruct = existingData or GetExpansionProfStruct()
-
-    -- Get per-expansion level data via the variant-specific API
-    -- C_TradeSkillUI.GetProfessionInfoBySkillLineID may return 0 when the profession window
-    -- hasn't been opened yet. Only overwrite stored data when we get a real value.
-    local variantInfo = C_TradeSkillUI_GetProfessionInfoBySkillLineID(variantConstants.skillLineVariantID)
-    if variantInfo and variantInfo.maxSkillLevel and variantInfo.maxSkillLevel > 0 then
-        expansionStruct.level = variantInfo.skillLevel
-        expansionStruct.maxLevel = variantInfo.maxSkillLevel
-        expansionStruct.professionName = variantInfo.professionName
-    end
-
-    -- Currency info for the skill line contains the current unspent knowledge points.
-    local currencyInfo = C_ProfSpecs_GetCurrencyInfoForSkillLine(variantConstants.skillLineVariantID)
-    if currencyInfo and currencyInfo.numAvailable then
-        expansionStruct.knowledgeUnspent = currencyInfo.numAvailable
-    end
-
-    -- Catch up currency info
-    if variantConstants.catchUpCurrencyID then
-        local catchUpCurrencyInfo = C_CurrencyInfo_GetCurrencyInfo(variantConstants.catchUpCurrencyID)
-        if catchUpCurrencyInfo and catchUpCurrencyInfo.quantity then
-            expansionStruct.catchUpCurrencyInfo = catchUpCurrencyInfo
-        end
-    end
-
-    -- Moxie currency info
-    if variantConstants.moxieCurrencyID then
-        local moxieInfo = C_CurrencyInfo_GetCurrencyInfo(variantConstants.moxieCurrencyID)
-        if moxieInfo and moxieInfo.quantity then
-            expansionStruct.moxie = {
-                currencyID = variantConstants.moxieCurrencyID,
-                amount = moxieInfo.quantity,
-                maxQuantity = moxieInfo.maxQuantity,
-            }
-        end
-    end
-
-    -- Knowledge level sum
-    local knowledgeLevelSum = 0
-    local knowledgeMaxLevelSum = 0
-
-    -- Get the config ID for the skill line
-    local configID = C_ProfSpecs_GetConfigIDForSkillLine(variantConstants.skillLineVariantID)
-    if configID and configID > 0 then
-        -- Get the config info for the skill line
-        local configInfo = C_Traits_GetConfigInfo(configID)
-        if configInfo then
-            -- Iterate over the tree IDs (specialization trees)
-            for _, treeID in pairs(configInfo.treeIDs) do
-                -- Get the nodes for the tree
-                local treeNodes = C_Traits_GetTreeNodes(treeID)
-                if not treeNodes then
-                    Debug:DebugPrint("!!! WARNING: Failed to get tree nodes for treeID: " .. treeID)
-                    return expansionStruct
-                end
-
-                -- Get the tab info for the tree
-                local tabInfo = C_ProfSpecs_GetTabInfo(treeID)
-                -- Initialize the specialization struct
-                local specializationStruct = GetSpecializationStruct(tabInfo, treeID, configID)
-
-                for _, nodeID in pairs(treeNodes) do
-                    -- Get the node info
-                    local nodeInfo = C_Traits_GetNodeInfo(configID, nodeID)
-                    if not nodeInfo then
-                        Debug:DebugPrint("!!! WARNING: Failed to get node info for nodeID: " .. nodeID)
-                        return expansionStruct
-                    end
-
-                    -- If the node has been purchased, add the knowledge level
-                    if nodeInfo.ranksPurchased > 1 then
-                        knowledgeLevelSum = knowledgeLevelSum + (nodeInfo.currentRank - 1)
-                        if tabInfo and specializationStruct then
-                            specializationStruct.knowledgeLevel = specializationStruct.knowledgeLevel +
-                                (nodeInfo.currentRank - 1)
-                        end
-                    end
-
-                    -- I might be able to just have this on the site, not sure I need it.
-                    -- Update the max knowledge level
-                    knowledgeMaxLevelSum = knowledgeMaxLevelSum + (nodeInfo.maxRanks - 1)
-                    if tabInfo and specializationStruct then
-                        specializationStruct.knowledgeMaxLevel = specializationStruct.knowledgeMaxLevel +
-                            (nodeInfo.maxRanks - 1)
-                    end
-                end
-
-                -- Should we use the treeID or something from the tabInfo?
-                expansionStruct.specializations[treeID] = specializationStruct
+-- Return supported current professions, retaining secondary slots only when configured.
+function Module:GetTrackedProfessions()
+    local professions = {}
+    for slot, professionIndex in pairs({ _GetProfessions() }) do
+        if professionConfig.includeSecondary or slot <= 2 then
+            local name, texture, level, maxLevel, _, _, skillLineID = _GetProfessionInfo(professionIndex)
+            if skillLineID and professionData[skillLineID] then
+                professions[#professions + 1] = {
+                    id = skillLineID,
+                    name = name,
+                    texture = texture,
+                    level = level,
+                    maxLevel = maxLevel,
+                }
             end
         end
     end
-
-    -- Set the knowledge level and max level
-    expansionStruct.knowledgeLevel = knowledgeLevelSum
-    expansionStruct.knowledgeMaxLevel = knowledgeMaxLevelSum
-
-    return expansionStruct
+    return professions
 end
 
+-- Store reported base ranks and let the optional Retail module enrich expansion data.
 function Module:UpdateProfessions()
-    local playerLevel = UnitLevel("player")
-    if playerLevel < 70 then
+    if not db:IsCharDBReady() then
         return
     end
 
-    local prof1, prof2 = _GetProfessions()
+    local playerLevel = _UnitLevel("player")
+    if playerLevel < professionConfig.minLevel then
+        return
+    end
 
     local professionsDB = db:GetCharDBKey("professions")
-    for _, professionIndex in pairs({ prof1, prof2 }) do
-        if professionIndex then
-            local _, _, _, _, _, _, skillLineID = _GetProfessionInfo(professionIndex)
+    for _, profession in ipairs(self:GetTrackedProfessions()) do
+        local skillLineID = profession.id
+        local profStruct = professionsDB[skillLineID] or { skillLineID = skillLineID }
+        profStruct.skillLineID = skillLineID
 
-            local profConstants = Module.Constants[skillLineID]
-            if not profConstants then
-                return
-            end
-
-            local profStruct = professionsDB[skillLineID] or { skillLineID = skillLineID }
-            profStruct.skillLineID = skillLineID
-
-            for key, value in pairs(profConstants) do
-                if type(value) == "table" and playerLevel >= value.minLevel then
-                    profStruct[key] = ExtractExpansionData(value, profStruct[key])
-                end
-            end
-
-            professionsDB[skillLineID] = profStruct
+        -- A temporary 0/0 report must not erase a previously collected base rank.
+        if profession.level and profession.maxLevel and profession.maxLevel > 0 then
+            profStruct.base = {
+                level = profession.level,
+                maxLevel = profession.maxLevel,
+                professionName = profession.name,
+            }
         end
+        if Retail then
+            Retail:UpdateProfession(profStruct, skillLineID, playerLevel)
+        end
+
+        professionsDB[skillLineID] = profStruct
     end
 
     db:UpdateCharDBKey("professions", professionsDB)
@@ -216,75 +114,3 @@ function Module:UpdateProfessions()
     Debug:DebugPrint("Professions updated")
 end
 
--------------------------------------------------
---- Constants
--------------------------------------------------
-
-Module.Constants = {
-    [171] = {
-        name = "Alchemy",
-        skillLineID = 171,
-        TWW = { minLevel = 70, skillLineVariantID = 2871, catchUpCurrencyID = 3057 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2906, catchUpCurrencyID = 3189, moxieCurrencyID = 3256 },
-    },
-    [164] = {
-        name = "Blacksmithing",
-        skillLineID = 164,
-        TWW = { minLevel = 70, skillLineVariantID = 2872, catchUpCurrencyID = 3058 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2907, catchUpCurrencyID = 3199, moxieCurrencyID = 3257 },
-    },
-    [333] = {
-        name = "Enchanting",
-        skillLineID = 333,
-        TWW = { minLevel = 70, skillLineVariantID = 2874, catchUpCurrencyID = 3059 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2909, catchUpCurrencyID = 3198, moxieCurrencyID = 3258 },
-    },
-    [202] = {
-        name = "Engineering",
-        skillLineID = 202,
-        TWW = { minLevel = 70, skillLineVariantID = 2875, catchUpCurrencyID = 3060 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2910, catchUpCurrencyID = 3197, moxieCurrencyID = 3259 },
-    },
-    [182] = {
-        name = "Herbalism",
-        skillLineID = 182,
-        TWW = { minLevel = 70, skillLineVariantID = 2877, catchUpCurrencyID = 3061 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2912, catchUpCurrencyID = 3196, moxieCurrencyID = 3260 },
-    },
-    [773] = {
-        name = "Inscription",
-        skillLineID = 773,
-        TWW = { minLevel = 70, skillLineVariantID = 2878, catchUpCurrencyID = 3062 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2913, catchUpCurrencyID = 3195, moxieCurrencyID = 3261 },
-    },
-    [755] = {
-        name = "Jewelcrafting",
-        skillLineID = 755,
-        TWW = { minLevel = 70, skillLineVariantID = 2879, catchUpCurrencyID = 3063 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2914, catchUpCurrencyID = 3194, moxieCurrencyID = 3262 },
-    },
-    [165] = {
-        name = "Leatherworking",
-        skillLineID = 165,
-        TWW = { minLevel = 70, skillLineVariantID = 2880, catchUpCurrencyID = 3064 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2915, catchUpCurrencyID = 3193, moxieCurrencyID = 3263 },
-    },
-    [186] = {
-        name = "Mining",
-        skillLineID = 186,
-        TWW = { minLevel = 70, skillLineVariantID = 2881, catchUpCurrencyID = 3065 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2916, catchUpCurrencyID = 3192, moxieCurrencyID = 3264 },
-    },
-    [393] = {
-        name = "Skinning",
-        skillLineID = 393,
-        TWW = { minLevel = 70, skillLineVariantID = 2882, catchUpCurrencyID = 3066 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2917, catchUpCurrencyID = 3191, moxieCurrencyID = 3265 },
-    },
-    [197] = {
-        name = "Tailoring",
-        skillLineID = 197,
-        TWW = { minLevel = 70, skillLineVariantID = 2883, catchUpCurrencyID = 3067 },
-        Midnight = { minLevel = 80, skillLineVariantID = 2918, catchUpCurrencyID = 3190, moxieCurrencyID = 3266 },
-    },
-}

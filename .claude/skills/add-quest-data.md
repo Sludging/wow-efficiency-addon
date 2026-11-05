@@ -34,7 +34,7 @@ Use reference addons in `.reference-repos/` to cross-check quest IDs when availa
 Keep non-quest numeric values outside these tables.
 `Table:FlattenQuestIDs()` recursively collects every positive numeric value and removes duplicate IDs.
 
-Changes to an existing file do not require a TOC change.
+Changes to an existing file do not require an XML change.
 Changes within an existing group do not require collection logic changes.
 
 ## Add a File to an Existing Group
@@ -44,23 +44,23 @@ Changes within an existing group do not require collection logic changes.
 3. Initialize the namespace root if it does not exist.
 4. Initialize the expansion table if it does not exist.
 5. Define the topic's quest categories.
-6. Add the file to `WowEfficiency.toc` before `Modules\Quests.lua`.
+6. Add a `Script` entry to `WowEfficiency.xml` before the entry for `Modules\Quests.lua`.
 
 Follow an existing file from the same group for namespace initialization.
-Use backslashes in TOC paths.
-Keep the file with its expansion and group in the TOC.
-WoW does not execute files that are absent from the TOC.
+Use backslashes in `file` attributes, for example `<Script file="Data\Quests\Midnight\Professions\Alchemy.lua"/>`.
+Keep the entry with its expansion and group in the common XML load list.
+Both edition TOCs load this XML; WoW does not execute Lua files absent from its load list.
 
 ## Add a New Group
 
 1. Create `Data/Quests/<Expansion>/<Group>/`.
 2. Create the data files with a new namespace root.
 3. Initialize the namespace root and expansion table in each file.
-4. Add each file to `WowEfficiency.toc` before `Modules\Quests.lua`.
-5. Add the namespace root to `StructuredQuests` in `Modules/Quests.lua`.
+4. Add each file as a `Script` entry in `WowEfficiency.xml` before `Modules\Quests.lua`, using backslashes in `file` attributes.
+5. Add `SelectQuestContent(WowEfficiency.<NewRoot>)` to `StructuredQuests` in `Modules/Quests.lua`, following the existing selected-content entries.
 
 Use a distinct root such as `WowEfficiency.RaidQuests` for a new group.
-The `StructuredQuests` entry makes that root available to the existing flattener.
+The `StructuredQuests` entry makes the root's edition-selected content available to the existing flattener.
 Use the existing `Professions`, `Delves`, or `Events` group when it already fits the data.
 
 ## Collection and Weekly Reset

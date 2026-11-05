@@ -51,6 +51,8 @@
     <Script file="Data\Quests\Midnight\Professions\Tailoring.lua"/>
     <Script file="Data\Quests\Midnight\Events\AqirInvasion.lua"/>
 
+    <!-- Character profile -->
+    <Script file="Modules\Profile.lua"/>
     <!-- Quests -->
     <Script file="Modules\Quests.lua"/>
     <!-- Professions -->

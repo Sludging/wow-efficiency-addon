@@ -88,10 +88,11 @@ function Module:UpdateProfessions()
         return
     end
 
-    local professionsDB = db:GetCharDBKey("professions")
+    local previousProfessions = db:GetCharDBKey("professions")
+    local professionsDB = {}
     for _, profession in ipairs(self:GetTrackedProfessions()) do
         local skillLineID = profession.id
-        local profStruct = professionsDB[skillLineID] or { skillLineID = skillLineID }
+        local profStruct = previousProfessions[skillLineID] or { skillLineID = skillLineID }
         profStruct.skillLineID = skillLineID
 
         -- A temporary 0/0 report must not erase a previously collected base rank.

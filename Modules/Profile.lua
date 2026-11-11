@@ -120,7 +120,7 @@ function Module:UpdateIdentity(event, unit)
         gender = UnitSex('player'),
     }
 
-    if RegionalUniqueNamesEnabled() then
+    if RegionalUniqueNamesEnabled and RegionalUniqueNamesEnabled() then
         -- Regional naming uses a surname, not an actual realm name.
         if surname and surname ~= '' then
             identity.surname = surname

@@ -1,5 +1,5 @@
 -- Get the addon name passed by WoW when loading the file
-local addonName = select(1, ...)
+local addonName, addonNamespace = ...
 
 -- Get the main addon object
 ---@type WoWEfficiency_Addon
@@ -52,6 +52,7 @@ function Module:OnInitialize()
 
     -- Region is constant for the session; store globally for the website to read.
     self.db.global.region = string.lower(GetCurrentRegionName())
+    self.db.global.gameEdition = addonNamespace.Edition.id
     -- Handle weekly reset
     self:HandleWeeklyReset()
 

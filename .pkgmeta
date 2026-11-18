@@ -23,8 +23,8 @@ externals:
     tag: latest
 
   Libs/Ace3/AceDB-3.0:
-    url: https://repos.wowace.com/wow/ace3/trunk/AceDB-3.0
-    tag: latest
+    # Latest release tag predates Forever's surname-aware character keys.
+    url: https://repos.wowace.com/wow/ace3/trunk/AceDB-3.0@1424
 
   Libs/Ace3/AceConsole-3.0:
     url: https://repos.wowace.com/wow/ace3/trunk/AceConsole-3.0
@@ -51,7 +51,15 @@ ignore:
   - .env
   - .env.*
   - README.md
+  - docs
   - Data/Quests/README.md
   - Context.md
   - Scripts
   - Libs/LibStub/tests
+  # The external supplies the library directly; omit nested checkout distributions.
+  - Libs/LibDBIcon-1.0/LibDBIcon-1.0
+  - Libs/LibDBIcon-1.0/LibDataBroker-1.1
+  - Libs/LibDBIcon-1.0/LibStub
+  - Libs/LibDBIcon-1.0/CallbackHandler-1.0
+  - Libs/LibDBIcon-1.0/embeds.xml
+  - Libs/LibDBIcon-1.0/LibDBIcon-1.0.toc

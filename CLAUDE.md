@@ -4,7 +4,7 @@ This World of Warcraft addon collects in-game data that the public Battle.net AP
 The addon stores this data locally in WoW's SavedVariables (`WowEfficiencyDB`).
 The companion website (wowefficiency.com) reads the local SavedVariables file in the user's browser.
 
-The addon has no test framework or linter. Verify changes in-game. Read [README.md → Releases](README.md#releases) before releasing or packaging.
+The addon has no test framework or linter. Verify changes in-game. Read [docs/DEVELOPMENT.md → Releases](docs/DEVELOPMENT.md#releases) before releasing or packaging.
 
 ## Architecture Decisions
 
@@ -21,7 +21,7 @@ The addon uses Ace3 rather than raw WoW API frames/events because:
 Each feature area is its own Ace module to enforce clear boundaries:
 - **DB module** owns all SavedVariables access. Other modules never touch `WowEfficiencyDB` directly - they go through `db:GetCharDBKey()` / `db:UpdateCharDBKey()`. The update path auto-timestamps via `TrackLastUpdated()` so the website knows data freshness.
 - **Quests module** handles quest completion tracking. It flattens the nested quest data structure (loaded from `Data/Quests/` files) into a flat list at load time so the runtime check is a simple loop.
-- **Professions module** collects skill levels, knowledge points, and specialization trees. Sub-modules (`Cooldowns`, `Concentration`) handle data that requires an open profession window (`TRADE_SKILL_LIST_UPDATE` only fires when the UI is open).
+- **Professions module** discovers supported professions and stores common rank data under `professions[skillLineID].base`. `Professions.Retail` adds expansion-specific knowledge and specialization data. Sub-modules (`Cooldowns`, `Concentration`) handle data that requires an open profession window (`TRADE_SKILL_LIST_UPDATE` only fires when the UI is open). Read [profession data](docs/DEVELOPMENT.md#profession-data) before changing this storage contract.
 - **Debug module** provides conditional printing gated by a profile-level `debugMode` flag, toggled via `/we debug`.
 
 ### Data Files vs Module Code
@@ -29,7 +29,7 @@ Each feature area is its own Ace module to enforce clear boundaries:
 Quest IDs live in `Data/Quests/` as pure data files separate from logic. Directories include `Shared/`, `TWW/Professions/`, `TWW/Delves/`, `Midnight/Professions/`, and `Midnight/Events/`.
 - Data files populate the shared addon namespaces: `ProfessionQuests`, `DelveQuests`, and `EventQuests`.
 - The Quests module lists supported groups in `StructuredQuests` and flattens their IDs via `Table:FlattenQuestIDs()`.
-- Adding IDs within known groups requires only data file changes. New files also need TOC entries; new groups need `StructuredQuests` entries.
+- Adding IDs within known groups requires only data file changes. New files also need `Script` entries in `WowEfficiency.xml`; new groups need selected-content entries in `StructuredQuests`.
 
 ### Weekly Reset Handling
 
@@ -37,11 +37,11 @@ The DB module tracks `nextWeeklyReset` per character. On login, if server time h
 
 ### Level Gate
 
-Data collection uses per-expansion minimum levels: TWW requires level 70+, Midnight requires level 80+. The Professions module gates extraction per-expansion inside its loop using `minLevel` from each expansion's Constants entry. The Quests module gates on level 70 (the lowest expansion minimum) so quest tracking activates as soon as any expansion content is relevant.
+`Edition.lua` selects collection thresholds and display policy. Retail profession details apply per-expansion `minLevel` values inside `Professions.Retail`; shared profession and quest collection use their selected edition configuration. Keep collection eligibility separate from status-panel display eligibility.
 
-### Profession Constants
+### Profession Data
 
-All Constants tables use a profession-first, expansion-second keying pattern: `Constants[skillLineID].TWW`, `Constants[skillLineID].Midnight`. Each expansion sub-key contains `minLevel`, `skillLineVariantID`, `catchUpCurrencyID`, and (for crafting professions) `concentrationCurrencyID`. The DB stores profession data the same way: `professions[skillLineID].TWW = { level, maxLevel, ... }`. Sub-module constants (Cooldowns, Concentration) follow the same pattern. The cooldowns constants list expansion-specific `recipeID`s that have daily/charge-based cooldowns.
+Pure catalogues in `Data/Professions/` load before `Edition.lua`, which selects one through `Edition.professions.data`. Entries are keyed by base skill-line ID; Retail detail fields live under `entry.expansions[expansion]`. Shared discovery and Retail enrichment consume this same selected catalogue. Saved data retains `professions[skillLineID].base` and expansion keys directly under the profession record. Cooldown and concentration constants remain profession-first, expansion-second; cooldown constants contain expansion-specific recipe IDs. Read [profession data](docs/DEVELOPMENT.md#profession-data) before changing the catalogue or storage shape.
 
 ### UI Module
 
@@ -52,14 +52,15 @@ All Constants tables use a profession-first, expansion-second keying pattern: `C
 
 ## TOC Load Order
 
-The TOC file controls what WoW loads and in what order. The ordering is intentional:
+Both edition TOCs own edition metadata and load the same `WowEfficiency.xml`. The common XML owns the ordered file list:
 1. Libraries first (they provide the framework)
 2. `Init.lua` creates the addon object that everything else references
-3. `DB` and `Debug` modules next since all other modules depend on them
-4. Data files before `Modules/Quests.lua` so the namespace is populated when the Quests module reads it. Data files are ordered: `Data\Quests\Shared\` → `Data\Quests\TWW\` → `Data\Quests\Midnight\`
-5. `Core.lua` last because it wires up slash commands that reference all modules
+3. Profession catalogues load before `Edition.lua`, which selects edition policy and data
+4. Types and utilities load before `DB` and `Debug`, which other modules depend on
+5. Quest data loads before `Modules/Quests.lua` so its namespaces are populated. Quest data is ordered: `Data\Quests\Shared\` → `Data\Quests\TWW\` → `Data\Quests\Midnight\`
+6. Guarded collection modules load after their dependencies, followed by UI and `Core.lua`; Core wires up slash commands that reference all modules
 
-**Any new `.lua` file must be added to the TOC or WoW silently ignores it.** TOC paths use backslashes.
+**Add every new `.lua` file as a `Script` entry in `WowEfficiency.xml` or WoW silently ignores it.** Use backslashes in `file` attributes, for example `<Script file="Data\Quests\Midnight\Professions\Alchemy.lua"/>`, and place quest data before `Modules\Quests.lua`.
 
 ## Patch Updates
 
@@ -73,4 +74,7 @@ Read [.claude/skills/add-quest-data.md](.claude/skills/add-quest-data.md) before
 
 - `Libs/` - vendored Ace3/LibStub, managed by `.pkgmeta`
 - `.release/` - generated output from the packager
-- `Scripts/` - release tooling
+
+## Packaging Tooling
+
+Maintain the repository-owned wrappers in `Scripts/`. `Scripts/packager.lock` pins the upstream version, commit, and script digests for local builds and CI. Keep fetched upstream scripts unmodified. Read [Development guide → Local packaging](docs/DEVELOPMENT.md#local-packaging) before packaging or updating the pin.

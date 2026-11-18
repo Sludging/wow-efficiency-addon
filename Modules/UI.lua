@@ -8,18 +8,21 @@ local WoWEfficiency = LibStub('AceAddon-3.0'):GetAddon(addonName)
 -- Fetch shared functionality
 ---@type WoWEfficiency_DB
 local db = WoWEfficiency:GetModule('DB')
+---@type WoWEfficiency_Professions
+local ProfessionsModule = WoWEfficiency:GetModule('Professions', true)
 ---@type WoWEfficiency_Professions_Cooldowns
-local CooldownsModule = WoWEfficiency:GetModule('Professions.Cooldowns')
+local CooldownsModule = WoWEfficiency:GetModule('Professions.Cooldowns', true)
 ---@type WoWEfficiency_Professions_Concentration
-local ConcentrationModule = WoWEfficiency:GetModule('Professions.Concentration')
+local ConcentrationModule = WoWEfficiency:GetModule('Professions.Concentration', true)
+local BankModule = WoWEfficiency:GetModule('Bank', true)
+local CurrenciesModule = WoWEfficiency:GetModule('Currencies', true)
 
 -- Upvalue global API functions
 local C_Timer_After = C_Timer.After
-local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
-local _GetProfessions = GetProfessions
-local _GetProfessionInfo = GetProfessionInfo
+local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo
 local _UnitLevel = UnitLevel
 local _GetServerTime = GetServerTime
+local statusConfig = addonNamespace.Edition.status
 
 -- Upvalue frame utilities from Utils/Frame.lua
 -- Get Frame utilities from addon namespace (loaded by Utils/Frame.lua)
@@ -71,20 +74,14 @@ local contentRefs = {
     legendCard     = nil,
     legendH        = 0,
     profHeading    = nil, -- "Professions" section heading frame
-    levelNotice    = nil, -- shown when player is below MIDNIGHT_MIN_LEVEL
+    levelNotice    = nil, -- shown below the selected edition's status level
     noProfNotice   = nil, -- shown when player has no tracked professions
-    profSlots      = {}, -- [1] and [2] for the two possible profession cards
+    profSlots      = {}, -- reusable profession cards, sized by the edition configuration
     accountHeading = nil, -- "Account Data" section heading frame
-    currencies     = {}, -- card frame refs for currencies
-    warbank        = {}, -- card frame refs for warbank gold
+    currencies     = nil, -- card frame refs for currencies
+    warbank        = nil, -- card frame refs for warbank gold
+    statusNotice   = nil, -- shown when no status sections are available
 }
-
--- ==============================================================================
--- Layout constants
--- ==============================================================================
-
--- Minimum player level required to collect Midnight profession and currency data
-local MIDNIGHT_MIN_LEVEL = 78
 
 -- ==============================================================================
 -- Utility function
@@ -202,9 +199,10 @@ end
 -- Creates a profession card slot with a placeholder icon and empty row content.
 -- The slot is hidden until UpdateContent assigns a profession and shows it.
 -- Returns a table of references to every mutable element in the card.
-local function BuildProfCardSlot(parent)
+local function CreateProfessionSlot(parent)
     local HEADER_H = 40
-    local h        = HEADER_H + 8 + ROW_STEP + 6 + ROW_STEP + 10
+    local hasWindowData = CooldownsModule or ConcentrationModule
+    local h        = HEADER_H + 8 + ROW_STEP + (hasWindowData and (6 + ROW_STEP) or 0) + 10
 
     local card = MakeCard(parent, h)
     -- Placeholder icon; UpdateContent replaces texture and label text when a
@@ -214,7 +212,10 @@ local function BuildProfCardSlot(parent)
 
     local y                           = -(HEADER_H + 8)
     local nextY, basicRow, basicDet   = CardRow(card, y, "Basic Stats", "red", "")
-    local _, windowRow, windowDet     = CardRow(card, nextY - 6, "Window Data", "red", "")
+    local windowRow, windowDet
+    if hasWindowData then
+        nextY, windowRow, windowDet = CardRow(card, nextY - 6, "Window Data", "red", "")
+    end
 
     card:Hide()
     return {
@@ -270,7 +271,7 @@ end
 -- Returns (status, detailText) for the "Basic Stats" row of a profession card.
 local function CalcBasicStatsRow(skillLineID, charDB)
     local status  = GetStatus(charDB.lastUpdated["professions"])
-    local expData = (charDB.professions[skillLineID] or {}).Midnight
+    local expData = (charDB.professions[skillLineID] or {})[statusConfig.professionContentKey]
 
     if expData and expData.maxLevel and expData.maxLevel > 0 then
         local parts = {}
@@ -291,8 +292,8 @@ end
 
 -- Returns (status, detailText) for the "Window Data" row of a profession card.
 local function CalcWindowDataRow(skillLineID, profName, charDB)
-    local hasCooldowns     = CooldownsModule.Constants[skillLineID] ~= nil
-    local hasConcentration = ConcentrationModule.Constants[skillLineID] ~= nil
+    local hasCooldowns     = CooldownsModule and CooldownsModule.Constants[skillLineID] ~= nil
+    local hasConcentration = ConcentrationModule and ConcentrationModule.Constants[skillLineID] ~= nil
     local windowStatus = "green"
     local bestTs       = 0
 
@@ -307,7 +308,7 @@ local function CalcWindowDataRow(skillLineID, profName, charDB)
         if (ts or 0) > bestTs then bestTs = ts or 0 end
     end
 
-    local expData = (charDB.professions[skillLineID] or {}).Midnight
+    local expData = (charDB.professions[skillLineID] or {})[statusConfig.professionContentKey]
     local detail
     if windowStatus == "red" then
         local what = (hasCooldowns and hasConcentration) and "cooldowns and concentration"
@@ -371,125 +372,171 @@ end
 -- Content population
 -- ==============================================================================
 
--- Creates all content frames once when the window is first opened and stores
--- their references in contentRefs. Frames have no initial position; UpdateContent
--- positions and populates them on every refresh.
-function Module:CreateContent()
-    -- Legend is fully static and always visible; no FontString refs needed
-    local legendCard, legendH = BuildLegend(scrollChild)
-    contentRefs.legendCard    = legendCard
-    contentRefs.legendH       = legendH
+--- Creates reusable profession cards and notices when profession tracking is enabled.
+--- Stores frame references in contentRefs for later refreshes.
+local function CreateProfessionSection(parent)
+    if not ProfessionsModule then return end
 
-    -- Profession section: heading, level-gate notice, no-profession notice, and
-    -- two card slots covering the maximum of two professions per character.
-    contentRefs.profHeading  = CreateHeadingFrame(scrollChild, "Professions")
-    contentRefs.levelNotice  = CreateNoticeFrame(scrollChild,
-        "Profession and currency tracking requires level " .. MIDNIGHT_MIN_LEVEL .. " (Midnight content).")
-    contentRefs.noProfNotice = CreateNoticeFrame(scrollChild,
+    contentRefs.profHeading = CreateHeadingFrame(parent, "Professions")
+    contentRefs.noProfNotice = CreateNoticeFrame(parent,
         "No tracked professions found for this character.")
-    contentRefs.profSlots[1] = BuildProfCardSlot(scrollChild)
-    contentRefs.profSlots[2] = BuildProfCardSlot(scrollChild)
+    for i = 1, addonNamespace.Edition.professions.maxSlots do
+        contentRefs.profSlots[i] = CreateProfessionSlot(parent)
+    end
+end
 
-    -- Account data section: heading, currencies (level-gated), and warbank (always shown)
-    contentRefs.accountHeading = CreateHeadingFrame(scrollChild, "Account Data")
-    contentRefs.currencies     = BuildCurrenciesCardSlot(scrollChild)
-    contentRefs.warbank        = BuildWarbankCardSlot(scrollChild)
+--- Creates the reusable currency card when currency tracking is enabled.
+local function CreateCurrenciesSection(parent)
+    if not CurrenciesModule then return end
+    contentRefs.currencies = BuildCurrenciesCardSlot(parent)
+end
+
+--- Creates supported account cards and their shared heading.
+--- Omits the heading when neither account card is available.
+local function CreateAccountSection(parent)
+    CreateCurrenciesSection(parent)
+    if BankModule then
+        contentRefs.warbank = BuildWarbankCardSlot(parent)
+    end
+    if contentRefs.currencies or contentRefs.warbank then
+        contentRefs.accountHeading = CreateHeadingFrame(parent, "Account Data")
+    end
+end
+
+-- Creates all content frames once when the window is first opened and stores
+-- their references in contentRefs. UpdateContent only repositions and updates them.
+function Module:CreateContent()
+    CreateProfessionSection(scrollChild)
+    CreateAccountSection(scrollChild)
+    if not contentRefs.profHeading and not contentRefs.accountHeading then
+        contentRefs.statusNotice = CreateNoticeFrame(scrollChild,
+            "No status information is available to display.")
+        return
+    end
+
+    contentRefs.legendCard, contentRefs.legendH = BuildLegend(scrollChild)
+    if contentRefs.profHeading or contentRefs.currencies then
+        local tracking = contentRefs.profHeading and contentRefs.currencies and "Profession and currency tracking"
+            or (contentRefs.profHeading and "Profession tracking" or "Currency tracking")
+        contentRefs.levelNotice = CreateNoticeFrame(scrollChild,
+            tracking .. " requires level " .. statusConfig.minLevel .. ".")
+    end
+end
+
+--- Returns the character's tracked professions, sorted by display name.
+--- Each entry contains the skill-line ID, name, icon texture, and current skill ranks.
+local function GetTrackedProfessions()
+    local profs = ProfessionsModule:GetTrackedProfessions()
+    table.sort(profs, function(a, b) return a.name < b.name end)
+    return profs
+end
+
+--- Updates and places an existing profession card, or hides an unused slot.
+--- Reuses the card's header and rows without creating frames.
+local function UpdateProfessionSlot(slot, prof, charDB, layout)
+    if not prof then
+        slot.card:Hide()
+        return
+    end
+
+    if slot.skillLineID ~= prof.id then
+        slot.skillLineID = prof.id
+        slot.headerIcon:SetTexture(prof.texture)
+        slot.headerLabel:SetText(GOLD .. prof.name .. R)
+    end
+    local basicStatus, basicDetail = CalcBasicStatsRow(prof.id, charDB)
+    slot.basicRow:SetText(STATUS_ICONS[basicStatus] .. "  " .. WHITE .. "Basic Stats" .. R)
+    slot.basicDet:SetText(GRAY .. basicDetail .. R)
+    if slot.windowRow then
+        local windowStatus, windowDetail = CalcWindowDataRow(prof.id, prof.name, charDB)
+        slot.windowRow:SetText(STATUS_ICONS[windowStatus] .. "  " .. WHITE .. "Window Data" .. R)
+        slot.windowDet:SetText(GRAY .. windowDetail .. R)
+    end
+    slot.card:Show()
+    layout:Place(slot.card, slot.h)
+end
+
+--- Updates profession cards or shows the applicable level or no-profession notice.
+--- Does nothing when the profession section was not created.
+local function UpdateProfessionSection(layout, charDB, playerLevel)
+    if not contentRefs.profHeading then return end
+    layout:Place(contentRefs.profHeading, 20, 14)
+    if playerLevel < statusConfig.minLevel then
+        contentRefs.levelNotice:Show()
+        layout:Place(contentRefs.levelNotice, 20, 6)
+        contentRefs.noProfNotice:Hide()
+        for _, slot in ipairs(contentRefs.profSlots) do slot.card:Hide() end
+        return
+    end
+
+    local profs = GetTrackedProfessions()
+    if #profs == 0 then
+        contentRefs.noProfNotice:Show()
+        layout:Place(contentRefs.noProfNotice, 20, 6)
+    else
+        contentRefs.noProfNotice:Hide()
+    end
+    for i, slot in ipairs(contentRefs.profSlots) do
+        UpdateProfessionSlot(slot, profs[i], charDB, layout)
+    end
+end
+
+--- Updates the currency card and applies its configured display level.
+--- Shows the level notice here only when no profession section can show it.
+local function UpdateCurrenciesSection(layout, charDB, playerLevel)
+    local currencies = contentRefs.currencies
+    if not currencies then return end
+    if playerLevel < statusConfig.minLevel then
+        currencies.card:Hide()
+        if not contentRefs.profHeading then
+            contentRefs.levelNotice:Show()
+            layout:Place(contentRefs.levelNotice, 20, 6)
+        end
+        return
+    end
+
+    local status, detail = CalcCurrenciesRow(charDB)
+    currencies.row:SetText(STATUS_ICONS[status] .. "  " .. WHITE .. "Tracked Currencies" .. R)
+    currencies.det:SetText(GRAY .. detail .. R)
+    currencies.card:Show()
+    layout:Place(currencies.card, currencies.h)
+end
+
+--- Updates and places the existing Warbank card without a character-level restriction.
+local function UpdateBankSection(layout)
+    local warbank = contentRefs.warbank
+    if not warbank then return end
+    local status, detail = CalcWarbankRow(db:GetDB().global)
+    warbank.row:SetText(STATUS_ICONS[status] .. "  " .. WHITE .. "Balance" .. R)
+    warbank.det:SetText(GRAY .. detail .. R)
+    warbank.card:Show()
+    layout:Place(warbank.card, warbank.h)
+end
+
+--- Places the account heading and updates its supported currency and Warbank cards.
+local function UpdateAccountSection(layout, charDB, playerLevel)
+    if not contentRefs.accountHeading then return end
+    layout:Place(contentRefs.accountHeading, 20, 14)
+    UpdateCurrenciesSection(layout, charDB, playerLevel)
+    UpdateBankSection(layout)
 end
 
 -- Repositions all content frames and updates their text from the current DB state.
 -- Called on every refresh; no frames are created during this call.
 function Module:UpdateContent()
-    local Professions = WoWEfficiency:GetModule('Professions')
-    local charDB      = db:GetCharDB()
-    local globalDB    = db:GetDB().global
-    local playerLevel = _UnitLevel("player")
-
-    -- Re-layout from scratch on each refresh so the scroll child height stays
-    -- accurate regardless of which cards are shown or hidden.
     local layout = NewLayout(scrollChild)
+    if contentRefs.statusNotice then
+        contentRefs.statusNotice:Show()
+        layout:Place(contentRefs.statusNotice, 20, 10)
+        return
+    end
 
-    -- Legend is always first and always shown
+    local charDB = db:GetCharDB()
+    local playerLevel = _UnitLevel("player")
     layout:Place(contentRefs.legendCard, contentRefs.legendH, 10)
-
-    -- Profession section heading is always shown
-    layout:Place(contentRefs.profHeading, 20, 14)
-
-    if playerLevel < MIDNIGHT_MIN_LEVEL then
-        -- Below minimum level: show a single notice and hide all profession cards
-        contentRefs.levelNotice:Show()
-        layout:Place(contentRefs.levelNotice, 20, 6)
-        contentRefs.noProfNotice:Hide()
-        contentRefs.profSlots[1].card:Hide()
-        contentRefs.profSlots[2].card:Hide()
-    else
-        contentRefs.levelNotice:Hide()
-
-        -- Collect and sort the character's currently active tracked professions
-        local prof1, prof2 = _GetProfessions()
-        local profs = {}
-        for _, idx in pairs({ prof1, prof2 }) do
-            if idx then
-                local profName, profTex, _, _, _, _, skillLineID = _GetProfessionInfo(idx)
-                if skillLineID and Professions.Constants[skillLineID] then
-                    table.insert(profs, { id = skillLineID, name = profName, texture = profTex })
-                end
-            end
-        end
-        table.sort(profs, function(a, b) return a.name < b.name end)
-
-        if #profs == 0 then
-            contentRefs.noProfNotice:Show()
-            layout:Place(contentRefs.noProfNotice, 20, 6)
-        else
-            contentRefs.noProfNotice:Hide()
-        end
-
-        -- Assign professions to slots in sorted order; hide any unused slots.
-        -- If the profession in a slot has changed (e.g. the player learned or
-        -- dropped a profession mid-session), the header is updated before the
-        -- row content so all visible text is consistent.
-        for i = 1, 2 do
-            local prof = profs[i]
-            local slot = contentRefs.profSlots[i]
-            if prof then
-                if slot.skillLineID ~= prof.id then
-                    slot.skillLineID = prof.id
-                    slot.headerIcon:SetTexture(prof.texture)
-                    slot.headerLabel:SetText(GOLD .. prof.name .. R)
-                end
-                local basicStatus, basicDetail = CalcBasicStatsRow(prof.id, charDB)
-                slot.basicRow:SetText(STATUS_ICONS[basicStatus] .. "  " .. WHITE .. "Basic Stats" .. R)
-                slot.basicDet:SetText(GRAY .. basicDetail .. R)
-                local windowStatus, windowDetail = CalcWindowDataRow(prof.id, prof.name, charDB)
-                slot.windowRow:SetText(STATUS_ICONS[windowStatus] .. "  " .. WHITE .. "Window Data" .. R)
-                slot.windowDet:SetText(GRAY .. windowDetail .. R)
-                slot.card:Show()
-                layout:Place(slot.card, slot.h)
-            else
-                slot.card:Hide()
-            end
-        end
-
-        -- Currencies are only tracked at Midnight level
-        layout:Place(contentRefs.accountHeading, 20, 14)
-        local currStatus, currDetail = CalcCurrenciesRow(charDB)
-        contentRefs.currencies.row:SetText(STATUS_ICONS[currStatus] .. "  " .. WHITE .. "Tracked Currencies" .. R)
-        contentRefs.currencies.det:SetText(GRAY .. currDetail .. R)
-        contentRefs.currencies.card:Show()
-        layout:Place(contentRefs.currencies.card, contentRefs.currencies.h)
-    end
-
-    -- Warbank is account-wide and always shown.
-    -- When the player is below Midnight level, currencies are skipped above, so
-    -- the account data heading needs to appear here immediately before the warbank card.
-    if playerLevel < MIDNIGHT_MIN_LEVEL then
-        layout:Place(contentRefs.accountHeading, 20, 14)
-    end
-    local bankStatus, bankDetail = CalcWarbankRow(globalDB)
-    contentRefs.warbank.row:SetText(STATUS_ICONS[bankStatus] .. "  " .. WHITE .. "Balance" .. R)
-    contentRefs.warbank.det:SetText(GRAY .. bankDetail .. R)
-    contentRefs.warbank.card:Show()
-    layout:Place(contentRefs.warbank.card, contentRefs.warbank.h)
+    if contentRefs.levelNotice then contentRefs.levelNotice:Hide() end
+    UpdateProfessionSection(layout, charDB, playerLevel)
+    UpdateAccountSection(layout, charDB, playerLevel)
 end
 
 -- ==============================================================================
@@ -600,13 +647,21 @@ end
 
 function Module:OnEnable()
     self:RegisterEvent('PLAYER_ENTERING_WORLD', 'OnPlayerEnteringWorld')
-    -- Register bucket events for all data updates
-    self:RegisterBucketEvent({
-        "TRADE_SKILL_LIST_UPDATE",
-        "BANKFRAME_CLOSED",
-        "CURRENCY_DISPLAY_UPDATE",
-        "ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED",
-    }, 0.2, "RefreshWindow")
+    -- Refresh only for events used by registered status collectors.
+    local events = {}
+    if ProfessionsModule or CooldownsModule or ConcentrationModule then
+        table.insert(events, "TRADE_SKILL_LIST_UPDATE")
+    end
+    if BankModule then
+        table.insert(events, "BANKFRAME_CLOSED")
+    end
+    if CurrenciesModule then
+        table.insert(events, "CURRENCY_DISPLAY_UPDATE")
+        table.insert(events, "ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED")
+    end
+    if #events > 0 then
+        self:RegisterBucketEvent(events, 0.2, "RefreshWindow")
+    end
 end
 
 function Module:OnPlayerEnteringWorld()

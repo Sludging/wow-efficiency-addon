@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: Wow Efficiency
+## Notes: A helper addon for the WoWEfficiency website.
+## Author: Sludger
+## Version: @project-version@
+## RequiredDeps:
+# Only after we upload to curseforge
+## X-Curse-Project-ID: 1268061
+## SavedVariables: WowEfficiencyDB
+# Declare optional dependency
+## OptionalDeps: Ace3
+
+WowEfficiency.xml

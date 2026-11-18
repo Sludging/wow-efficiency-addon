@@ -1,4 +1,5 @@
 ## Interface: 120105
+## Interface-Camelot: 16001
 ## Title: Wow Efficiency
 ## Notes: A helper addon for the WoWEfficiency website.
 ## Author: Sludger
@@ -10,66 +11,4 @@
 # Declare optional dependency
 ## OptionalDeps: Ace3 
 
-# Load libraries - Order matters!
-Libs\LibStub\LibStub.lua
-Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
-Libs\Ace3\AceAddon-3.0\AceAddon-3.0.xml
-Libs\Ace3\AceEvent-3.0\AceEvent-3.0.xml
-Libs\Ace3\AceDB-3.0\AceDB-3.0.xml
-Libs\Ace3\AceConsole-3.0\AceConsole-3.0.xml
-Libs\Ace3\AceBucket-3.0\AceBucket-3.0.xml
-Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
-Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
-
-# Our addon files
-Init.lua
-Types.lua
-Utils\Table.lua
-Utils\Frame.lua
-Modules\DB.lua
-Modules\Debug.lua
-
-# Quest Data Files - these populate the addon namespace when loaded
-## Shared (cross-expansion)
-Data\Quests\Shared\Darkmoon.lua
-## TWW
-Data\Quests\TWW\Professions\Alchemy.lua
-Data\Quests\TWW\Professions\Blacksmithing.lua
-Data\Quests\TWW\Professions\Enchanting.lua
-Data\Quests\TWW\Professions\Engineering.lua
-Data\Quests\TWW\Professions\Herbalism.lua
-Data\Quests\TWW\Professions\Inscription.lua
-Data\Quests\TWW\Professions\Jewelcrafting.lua
-Data\Quests\TWW\Professions\Leatherworking.lua
-Data\Quests\TWW\Professions\Mining.lua
-Data\Quests\TWW\Professions\Skinning.lua
-Data\Quests\TWW\Professions\Tailoring.lua
-Data\Quests\TWW\Delves\TitanBelt.lua
-## Midnight
-Data\Quests\Midnight\Professions\Alchemy.lua
-Data\Quests\Midnight\Professions\Blacksmithing.lua
-Data\Quests\Midnight\Professions\Enchanting.lua
-Data\Quests\Midnight\Professions\Engineering.lua
-Data\Quests\Midnight\Professions\Herbalism.lua
-Data\Quests\Midnight\Professions\Inscription.lua
-Data\Quests\Midnight\Professions\Jewelcrafting.lua
-Data\Quests\Midnight\Professions\Leatherworking.lua
-Data\Quests\Midnight\Professions\Mining.lua
-Data\Quests\Midnight\Professions\Skinning.lua
-Data\Quests\Midnight\Professions\Tailoring.lua
-Data\Quests\Midnight\Events\AqirInvasion.lua
-
-# Quests
-Modules\Quests.lua
-# Professions
-Modules\Professions.lua
-Modules\Professions\Cooldowns.lua
-Modules\Professions\Concentration.lua
-# Bank
-Modules\Bank.lua
-# Currencies
-Modules\Currencies.lua
-# UI
-Modules\UI.lua
-# Core
-Core.lua
+WowEfficiency.xml

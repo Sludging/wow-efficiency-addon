@@ -1,6 +1,10 @@
 -- Get the addon name and namespace passed by WoW when loading the file
 local addonName, addonNamespace = select(1, ...), select(2, ...)
 
+if not addonNamespace.Edition.collectors['Quests'] then
+    return
+end
+
 -- Get the main addon object
 ---@type WoWEfficiency_Addon
 local WoWEfficiency = LibStub('AceAddon-3.0'):GetAddon(addonName)
@@ -13,6 +17,7 @@ local db = WoWEfficiency:GetModule('DB')
 
 -- Get table utilities from addon namespace (loaded by Utils/Table.lua)
 local Table = addonNamespace.Utils and addonNamespace.Utils.Table
+local QuestConfig = addonNamespace.Edition.quests
 
 -- Upvalue global functions
 local CQL_IsQuestFlaggedCompleted = C_QuestLog.IsQuestFlaggedCompleted
@@ -52,8 +57,7 @@ end
 -- Checks all quests in the trackedQuestIDs list and updates the database
 function Module:UpdateAllTrackedQuests()
     local playerLevel = UnitLevel("player")
-    -- 70 is the minimum level across all tracked expansions (TWW=70, Midnight=80)
-    if playerLevel < 70 then
+    if playerLevel < QuestConfig.minLevel then
         return
     end
     -- TODO: Don't track characters that don't have the required professions?
@@ -63,6 +67,10 @@ function Module:UpdateAllTrackedQuests()
     if not self.Constants or not self.Constants.TrackedQuestIDs then
         Debug:DebugPrint("!!! ERROR: UpdateAllTrackedQuests cannot run because Constants are not loaded.")
         return -- Exit the function early
+    end
+    -- An empty selection collected nothing and must not update quest freshness.
+    if #self.Constants.TrackedQuestIDs == 0 then
+        return
     end
     -- Ensure DB character profile is loaded
     if not db:IsCharDBReady() then
@@ -100,12 +108,22 @@ end
 --- Constants
 -------------------------------------------------
 
--- Load structured quest data from the addon namespace
--- Structure: GroupName = { SubGroupName = { CategoryName = { questID1, questID2, ... } } }
+-- Select content tables by reference once, after all quest data has loaded.
+local function SelectQuestContent(root)
+    local selected = {}
+    if root then
+        for _, contentKey in ipairs(QuestConfig.contentKeys) do
+            selected[contentKey] = root[contentKey]
+        end
+    end
+    return selected
+end
+
+-- Structure: GroupName = { ContentKey = { Topic = { Category = { questIDs } } } }
 local StructuredQuests = {
-    Professions = addonNamespace.ProfessionQuests or {},
-    Delves = addonNamespace.DelveQuests or {},
-    Events = addonNamespace.EventQuests or {}
+    Professions = SelectQuestContent(addonNamespace.ProfessionQuests),
+    Delves = SelectQuestContent(addonNamespace.DelveQuests),
+    Events = SelectQuestContent(addonNamespace.EventQuests)
 }
 
 -- Flatten the quest structure and create constants

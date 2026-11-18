@@ -1,5 +1,4 @@
-- Added a Forever test build that records basic profession skills, including supported secondary professions.
-- Added saved character profiles with identity, level, specialization, guild, item level, money, experience, and achievement points when available.
-- Fixed saved profession data retaining professions that a character no longer knows.
-- Retail profession knowledge, specializations, concentration, and cooldown tracking remain available.
-- Forever support is still in testing and is not ready for general use.
+You can now see your Forever characters and their profession skills on WoW Efficiency. Forever support is in preview.
+
+Log into each Forever character with the addon enabled, then type `/reload` to save their data.
+Select Forever on WoW Efficiency, then load `_forever_/WTF/Account/<account>/SavedVariables/WowEfficiency.lua` for your WoW account in Settings.

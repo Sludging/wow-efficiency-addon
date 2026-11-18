@@ -8,6 +8,7 @@ if interfaceVersion >= 16000 and interfaceVersion < 17000 then
     addonNamespace.Edition = {
         id = "forever",
         collectors = {
+            Profile = true,
             Quests = true,
             Professions = true,
         },
@@ -31,6 +32,7 @@ elseif WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
     addonNamespace.Edition = {
         id = "retail",
         collectors = {
+            Profile = true,
             Quests = true,
             Professions = true,
             ["Professions.Retail"] = true,

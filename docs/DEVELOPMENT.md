@@ -92,6 +92,14 @@ The packaged AceDB must support surname-aware names.
 Inspect the actual packaged implementation after dependency changes.
 Controlled name tuples can check storage logic but cannot prove live client names or saved files.
 
+### Character profile
+
+`Modules/Profile.lua` collects a played-character baseline for both Retail and Forever, without a level gate.
+The DB module stores it under `.profile` on the existing character record, and it persists through normal SavedVariables saves.
+Existing metadata, professions, quests, and currencies remain independent of profile collection.
+
+Profile collection does not replace the website's Battle.net login or account discovery.
+
 ## Local packaging
 
 Run from the repository root with Bash, Git, `curl`, Subversion (`svn`), `zip`, `sha256sum`, and upstream's usual Unix tools.

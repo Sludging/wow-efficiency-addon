@@ -1,5 +1,5 @@
-- Added an unreleased Forever test build with basic profession skill tracking.
-- Added game edition information to saved data.
-- Kept Retail profession details separate from shared profession tracking.
-- Saved character profiles now include basic identity, level, guild, equipment level, and money when the client provides them.
-- Forever client behavior still requires in-game testing.
+- Added a Forever test build that records basic profession skills, including supported secondary professions.
+- Added saved character profiles with identity, level, specialization, guild, item level, money, experience, and achievement points when available.
+- Fixed saved profession data retaining professions that a character no longer knows.
+- Retail profession knowledge, specializations, concentration, and cooldown tracking remain available.
+- Forever support is still in testing and is not ready for general use.
